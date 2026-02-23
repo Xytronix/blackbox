@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import sh.harold.blackbox.core.bundle.BundleBuilder;
-import sh.harold.blackbox.core.capture.BundleExtrasProvider;
+import sh.harold.blackbox.core.bundle.BundleExtrasRegistry;
 import sh.harold.blackbox.core.capture.CapturePipeline;
 import sh.harold.blackbox.core.capture.IncidentNotifier;
 import sh.harold.blackbox.core.capture.RecordingDumper;
@@ -51,6 +51,7 @@ final class BlackboxRuntime implements AutoCloseable {
     private final HeartbeatStallDetector stallDetector;
     private final TriggerEngine triggerEngine;
     private final CapturePipeline capturePipeline;
+    private final BundleExtrasRegistry extrasRegistry;
 
     private final AtomicBoolean stallCheckRunning = new AtomicBoolean(false);
     private final Map<String, AtomicBoolean> heartbeatPending = new ConcurrentHashMap<>();
@@ -73,7 +74,10 @@ final class BlackboxRuntime implements AutoCloseable {
 
         Clock clock = Clock.systemUTC();
 
-        JfrController jfr = new JfrController(config.jfrMaxAge(), config.jfrMaxSizeBytes(), config.jfrRecordingName());
+        JfrController jfr = new JfrController(
+            config.jfrMaxAge(), config.jfrMaxSizeBytes(),
+            config.jfrRecordingName(), config.jfrDisabledEvents()
+        );
         jfr.start();
 
         HeartbeatRegistry heartbeatRegistry = new HeartbeatRegistry(clock);
@@ -95,6 +99,10 @@ final class BlackboxRuntime implements AutoCloseable {
         Path incidentDir = dataDir.resolve("incidents");
         Path tempDir = dataDir.resolve("temp");
 
+        BundleExtrasRegistry extrasRegistry = new BundleExtrasRegistry(logger);
+        extrasRegistry.register(new HytaleBundleExtrasProvider(
+            heartbeatRegistry, config.capturePolicy().logTailLines()));
+
         CapturePipeline capturePipeline = new CapturePipeline(
             clock,
             triggerEngine,
@@ -102,7 +110,7 @@ final class BlackboxRuntime implements AutoCloseable {
             new BundleBuilder(clock, logger),
             new RetentionManager(clock, logger, FileDeleter.defaultDeleter()),
             notifier,
-            new HytaleBundleExtrasProvider(logger),
+            extrasRegistry,
             incidentDir,
             tempDir,
             config.capturePolicy(),
@@ -123,7 +131,8 @@ final class BlackboxRuntime implements AutoCloseable {
             heartbeatRegistry,
             stallDetector,
             triggerEngine,
-            capturePipeline
+            capturePipeline,
+            extrasRegistry
         );
         runtime.startScheduledWork();
         runtime.registerCommands();
@@ -163,7 +172,8 @@ final class BlackboxRuntime implements AutoCloseable {
         HeartbeatRegistry heartbeatRegistry,
         HeartbeatStallDetector stallDetector,
         TriggerEngine triggerEngine,
-        CapturePipeline capturePipeline
+        CapturePipeline capturePipeline,
+        BundleExtrasRegistry extrasRegistry
     ) {
         this.plugin = plugin;
         this.clock = clock;
@@ -179,6 +189,7 @@ final class BlackboxRuntime implements AutoCloseable {
         this.stallDetector = stallDetector;
         this.triggerEngine = triggerEngine;
         this.capturePipeline = capturePipeline;
+        this.extrasRegistry = extrasRegistry;
     }
 
     void registerCommands() {
@@ -226,6 +237,10 @@ final class BlackboxRuntime implements AutoCloseable {
 
     BlackboxConfig config() {
         return config;
+    }
+
+    BundleExtrasRegistry extrasRegistry() {
+        return extrasRegistry;
     }
 
     ExecutorService worker() {

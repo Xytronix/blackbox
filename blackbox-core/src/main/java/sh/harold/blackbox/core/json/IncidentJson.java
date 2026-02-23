@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
+
 import sh.harold.blackbox.core.incident.IncidentMetadata;
 import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.incident.IncidentSummary;
@@ -29,6 +32,7 @@ public final class IncidentJson {
         json.beginObject();
         writeMeta(json, report.meta());
         writeSummary(json, report.summary());
+        writeContext(json, report.context());
         json.endObject();
         writer.flush();
     }
@@ -62,6 +66,17 @@ public final class IncidentJson {
             json.value(item);
         }
         json.endArray();
+        json.endObject();
+    }
+
+    private static void writeContext(JsonWriter json, Map<String, String> context) throws IOException {
+        if (context == null || context.isEmpty()) {
+            return;
+        }
+        json.name("context").beginObject();
+        for (Map.Entry<String, String> entry : new TreeMap<>(context).entrySet()) {
+            json.name(entry.getKey()).value(entry.getValue());
+        }
         json.endObject();
     }
 }
