@@ -33,4 +33,8 @@ public final class HeartbeatRegistry {
     public Set<String> scopes() {
         return Set.copyOf(beats.keySet());
     }
+
+    public Map<String, Instant> snapshot() {
+        return Map.copyOf(beats);
+    }
 }

@@ -3,9 +3,11 @@ package sh.harold.blackbox.core.jfr;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.util.Objects;
 import java.text.ParseException;
+import java.time.Duration;
+import java.util.List;
+import java.util.Objects;
+
 import jdk.jfr.Configuration;
 import jdk.jfr.EventSettings;
 import jdk.jfr.Recording;
@@ -20,13 +22,19 @@ public final class JfrController implements AutoCloseable {
     private final Duration maxAge;
     private final long maxSizeBytes;
     private final String recordingName;
+    private final List<String> disabledEvents;
     private Recording recording;
     private final System.Logger logger = System.getLogger(JfrController.class.getName());
 
     public JfrController(Duration maxAge, long maxSizeBytes, String recordingName) {
+        this(maxAge, maxSizeBytes, recordingName, List.of());
+    }
+
+    public JfrController(Duration maxAge, long maxSizeBytes, String recordingName, List<String> disabledEvents) {
         this.maxAge = Objects.requireNonNull(maxAge, "maxAge");
         this.maxSizeBytes = maxSizeBytes;
         this.recordingName = Objects.requireNonNull(recordingName, "recordingName");
+        this.disabledEvents = List.copyOf(Objects.requireNonNull(disabledEvents, "disabledEvents"));
     }
 
     public void start() {
@@ -39,6 +47,7 @@ public final class JfrController implements AutoCloseable {
         created.setMaxAge(maxAge);
         created.setMaxSize(maxSizeBytes);
         enableMarkerEvent(created);
+        disableConfiguredEvents(created);
         created.start();
         this.recording = created;
     }
@@ -100,6 +109,17 @@ public final class JfrController implements AutoCloseable {
                 .withThreshold(Duration.ZERO);
         } catch (IllegalArgumentException e) {
             logger.log(System.Logger.Level.WARNING, "Failed to enable marker event.", e);
+        }
+    }
+
+    private void disableConfiguredEvents(Recording recording) {
+        for (String eventName : disabledEvents) {
+            try {
+                recording.disable(eventName);
+                logger.log(System.Logger.Level.DEBUG, "Disabled JFR event: " + eventName);
+            } catch (Exception e) {
+                logger.log(System.Logger.Level.WARNING, "Failed to disable JFR event '" + eventName + "'.", e);
+            }
         }
     }
 

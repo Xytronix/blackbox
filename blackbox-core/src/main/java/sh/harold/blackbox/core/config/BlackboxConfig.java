@@ -1,7 +1,9 @@
 package sh.harold.blackbox.core.config;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
+
 import sh.harold.blackbox.core.capture.CapturePolicy;
 import sh.harold.blackbox.core.notify.discord.DiscordWebhookConfig;
 import sh.harold.blackbox.core.trigger.TriggerPolicy;
@@ -13,6 +15,7 @@ public record BlackboxConfig(
     Duration jfrMaxAge,
     long jfrMaxSizeBytes,
     String jfrRecordingName,
+    List<String> jfrDisabledEvents,
     TriggerPolicy triggerPolicy,
     CapturePolicy capturePolicy,
     DiscordWebhookConfig discordWebhook,
@@ -21,6 +24,8 @@ public record BlackboxConfig(
     public BlackboxConfig {
         Objects.requireNonNull(jfrMaxAge, "jfrMaxAge");
         Objects.requireNonNull(jfrRecordingName, "jfrRecordingName");
+        Objects.requireNonNull(jfrDisabledEvents, "jfrDisabledEvents");
+        jfrDisabledEvents = List.copyOf(jfrDisabledEvents);
         Objects.requireNonNull(triggerPolicy, "triggerPolicy");
         Objects.requireNonNull(capturePolicy, "capturePolicy");
         Objects.requireNonNull(discordWebhook, "discordWebhook");
@@ -33,5 +38,18 @@ public record BlackboxConfig(
         if (jfrRecordingName.isBlank()) {
             throw new IllegalArgumentException("jfrRecordingName must be non-blank.");
         }
+    }
+
+    public BlackboxConfig(
+        Duration jfrMaxAge,
+        long jfrMaxSizeBytes,
+        String jfrRecordingName,
+        TriggerPolicy triggerPolicy,
+        CapturePolicy capturePolicy,
+        DiscordWebhookConfig discordWebhook,
+        boolean webEnabled
+    ) {
+        this(jfrMaxAge, jfrMaxSizeBytes, jfrRecordingName, List.of(),
+             triggerPolicy, capturePolicy, discordWebhook, webEnabled);
     }
 }

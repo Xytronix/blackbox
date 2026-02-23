@@ -16,6 +16,7 @@ public final class BlackboxPlugin extends JavaPlugin {
     protected void start() {
         try {
             runtime = BlackboxRuntime.start(this);
+            BlackboxApi.init(runtime);
         } catch (Exception e) {
             logger.log(System.Logger.Level.ERROR, "Blackbox failed to start.", e);
         }
@@ -31,6 +32,7 @@ public final class BlackboxPlugin extends JavaPlugin {
         } catch (Exception e) {
             logger.log(System.Logger.Level.WARNING, "Blackbox shutdown failed.", e);
         } finally {
+            BlackboxApi.shutdown();
             runtime = null;
         }
     }

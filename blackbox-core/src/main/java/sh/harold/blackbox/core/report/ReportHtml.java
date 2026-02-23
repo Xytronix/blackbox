@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
+
 import sh.harold.blackbox.core.incident.IncidentMetadata;
 import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.incident.IncidentSummary;
@@ -47,6 +50,9 @@ public final class ReportHtml {
             .append(".card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;}")
             .append("ul{margin:8px 0 0 18px;padding:0;}")
             .append("code{background:#efe8dc;padding:2px 6px;border-radius:6px;}")
+            .append("table{width:100%;border-collapse:collapse;margin:8px 0;}")
+            .append("th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);}")
+            .append("th{color:var(--muted);font-weight:normal;font-size:13px;}")
             .append("</style></head><body><main>");
 
         html.append("<header><div class=\"meta\">Incident ID: ")
@@ -79,6 +85,8 @@ public final class ReportHtml {
             .append("</div>")
             .append("</section>");
 
+        renderContext(html, report.context());
+
         html.append("<section class=\"card\"><h2>What happened</h2>")
             .append(renderList(summary.whatHappened()))
             .append("</section>");
@@ -90,6 +98,20 @@ public final class ReportHtml {
 
         html.append("</main></body></html>");
         return html.toString();
+    }
+
+    private static void renderContext(StringBuilder html, Map<String, String> context) {
+        if (context == null || context.isEmpty()) {
+            return;
+        }
+        html.append("<section class=\"card\"><h2>Trigger context</h2><table>");
+        html.append("<tr><th>Key</th><th>Value</th></tr>");
+        for (Map.Entry<String, String> entry : new TreeMap<>(context).entrySet()) {
+            html.append("<tr><td>").append(escapeHtml(entry.getKey()))
+                .append("</td><td>").append(escapeHtml(entry.getValue()))
+                .append("</td></tr>");
+        }
+        html.append("</table></section>");
     }
 
     private static String renderList(Iterable<String> items) {
