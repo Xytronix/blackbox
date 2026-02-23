@@ -1,11 +1,9 @@
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.tasks.testing.Test
 import org.gradle.jvm.toolchain.JavaLanguageVersion
-import sh.harold.blackbox.gradle.RunHytaleExtension
 
 plugins {
     base
-    id("sh.harold.blackbox.run-hytale")
 }
 
 allprojects {
@@ -29,18 +27,4 @@ subprojects {
     tasks.withType<Test>().configureEach {
         useJUnitPlatform()
     }
-}
-
-extensions.configure<RunHytaleExtension>("runHytale") {
-    jarUrl.set(
-        providers.gradleProperty("hytale.jarUrl")
-            .orElse(providers.environmentVariable("HYTALE_JAR_URL"))
-            .orElse(rootProject.file("lib/HytaleServer.jar").toURI().toString())
-    )
-
-    assetsPath.set(
-        providers.gradleProperty("hytale.assetsPath")
-            .orElse(providers.environmentVariable("HYTALE_ASSETS_PATH"))
-            .orElse(rootProject.file("lib/Assets.zip").path)
-    )
 }

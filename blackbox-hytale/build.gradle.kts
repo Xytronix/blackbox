@@ -3,6 +3,11 @@ import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.jvm.tasks.Jar
 import org.gradle.kotlin.dsl.the
 
+plugins {
+    java
+    id("sh.harold.hytale.run")
+}
+
 repositories {
     mavenCentral()
 }
