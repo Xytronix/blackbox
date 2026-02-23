@@ -1,11 +1,15 @@
 package sh.harold.blackbox.core.env;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 public final class TextRedactor {
+    private static final System.Logger LOGGER = System.getLogger(TextRedactor.class.getName());
+
     public static final List<String> DEFAULT_PATTERNS = List.of(
         "(?<!\\d)(?:\\d{1,3}\\.){3}\\d{1,3}(?!\\d)",
         "(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![0-9A-Fa-f:])",
@@ -17,9 +21,16 @@ public final class TextRedactor {
 
     public TextRedactor(List<String> regexes) {
         Objects.requireNonNull(regexes, "regexes");
-        this.patterns = regexes.stream()
-            .map(Pattern::compile)
-            .toList();
+        List<Pattern> compiled = new ArrayList<>(regexes.size());
+        for (String regex : regexes) {
+            try {
+                compiled.add(Pattern.compile(regex));
+            } catch (PatternSyntaxException e) {
+                LOGGER.log(System.Logger.Level.WARNING,
+                    "Skipping invalid redact pattern: " + regex, e);
+            }
+        }
+        this.patterns = List.copyOf(compiled);
     }
 
     public String redact(String text) {
@@ -48,3 +59,4 @@ public final class TextRedactor {
         return !patterns.isEmpty();
     }
 }
+

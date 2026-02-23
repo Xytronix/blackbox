@@ -1,6 +1,7 @@
 package sh.harold.blackbox.hytale;
 
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -156,13 +157,46 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
                 return "";
             }
 
-            List<String> allLines = Files.readAllLines(latestLog, StandardCharsets.UTF_8);
-            int startIndex = Math.max(0, allLines.size() - logTailLines);
-            List<String> tail = allLines.subList(startIndex, allLines.size());
-            return String.join("\n", tail);
+            return readTail(latestLog, logTailLines);
         } catch (IOException e) {
             LOGGER.log(System.Logger.Level.WARNING, "Failed to read server log tail.", e);
             return "";
+        }
+    }
+
+    private static String readTail(Path file, int lines) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(file.toFile(), "r")) {
+            long length = raf.length();
+            if (length == 0) {
+                return "";
+            }
+
+            int newlineCount = 0;
+            long pos = length - 1;
+
+            raf.seek(pos);
+            if (raf.readByte() == '\n') {
+                pos--;
+            }
+
+            while (pos >= 0) {
+                raf.seek(pos);
+                if (raf.readByte() == '\n') {
+                    newlineCount++;
+                    if (newlineCount >= lines) {
+                        pos++;
+                        break;
+                    }
+                }
+                pos--;
+            }
+
+            long startPos = Math.max(pos, 0);
+            int tailLength = (int) (length - startPos);
+            byte[] tailBytes = new byte[tailLength];
+            raf.seek(startPos);
+            raf.readFully(tailBytes);
+            return new String(tailBytes, StandardCharsets.UTF_8);
         }
     }
 }
