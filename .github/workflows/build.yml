@@ -37,11 +37,10 @@ jobs:
       - name: Run build
         run: ./gradlew $GRADLE_TASK --no-daemon
 
-      - name: Upload core artifacts
+      - name: Upload plugin artifact
         if: success()
         uses: actions/upload-artifact@v6
         with:
-          name: blackbox-libs
-          path: |
-            blackbox-core/build/libs/*.jar
-            blackbox-hytale/build/libs/*.jar
+          name: blackbox-hytale
+          path: blackbox-hytale/build/libs/blackbox-hytale-*.jar
+          if-no-files-found: error
