@@ -1,0 +1,47 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+    inputs:
+      gradle_task:
+        description: "Gradle task(s) to run"
+        required: false
+        default: "build"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      GRADLE_TASK: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.gradle_task || 'build' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run build
+        run: ./gradlew $GRADLE_TASK --no-daemon
+
+      - name: Upload core artifacts
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: blackbox-libs
+          path: |
+            blackbox-core/build/libs/*.jar
+            blackbox-hytale/build/libs/*.jar

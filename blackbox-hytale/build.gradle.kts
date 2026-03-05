@@ -10,16 +10,22 @@ plugins {
     id("sh.harold.hytale.run")
 }
 
+val hytaleServerVersion = providers
+    .gradleProperty("hytaleServerVersion")
+    .orElse("2026.02.19-1a311a592")
+
 repositories {
     mavenCentral()
+    maven("https://maven.hytale.com/release")
+    maven("https://maven.hytale.com/pre-release")
 }
 
 dependencies {
-    compileOnly(files(rootProject.file("lib/HytaleServer.jar")))
+    compileOnly("com.hypixel.hytale:Server:${hytaleServerVersion.get()}")
     implementation(project(":blackbox-core"))
     testImplementation(platform("org.junit:junit-bom:5.10.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly(files(rootProject.file("lib/HytaleServer.jar")))
+    testRuntimeOnly("com.hypixel.hytale:Server:${hytaleServerVersion.get()}")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
