@@ -188,9 +188,9 @@ final class BlackboxRuntime implements AutoCloseable {
             notifier,
             extrasRegistry,
             worldStats,
-            () -> HytaleModConfigs.appendTo(HytaleMixins.appendTo(HytalePlugins.appendTo(
+            () -> HytaleAssetPacks.appendTo(HytaleModConfigs.appendTo(HytaleMixins.appendTo(HytalePlugins.appendTo(
                 HytaleEntities.appendTo(HytaleTickSystems.appendTo(HytaleServerLog.appendTo(
-                    BlackboxApi.collectDiagnostics(), config.capturePolicy().logTailLines())))))),
+                    BlackboxApi.collectDiagnostics(), config.capturePolicy().logTailLines()))))))),
             postIncidentWaiter,
             incidentDir,
             tempDir,

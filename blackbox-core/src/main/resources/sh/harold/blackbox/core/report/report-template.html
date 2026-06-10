@@ -2052,6 +2052,28 @@ function pluginsHtml(){
   <div class="tscroll"><div class="tcap"><table class="sortable" id="pl-t"><thead><tr>${thc("Plugin","Plugin or module name",{sort:"text"})}${thc("Author","Author or namespace",{sort:"text"})}${thc("Version","Installed version",{sort:"text"})}${thc("Compiled for","Server range from the mod's manifest, checked against the running server.",{sort:"text"})}${thc("Type","Hytale core engine module vs community plugin",{sort:"text"})}${thc("Link","Search for this plugin on CurseForge (external link)")}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
+function assetPacksHtml(){
+  const ap=D.assetPacks;
+  if(!ap||!ap.length) return "";
+  const incompat=ap.filter(p=>p[5]==="INCOMPATIBLE").length;
+  const rows=ap.map(p=>{
+    const author=p[0],name=p[1],ver=p[2],range=p[4]||null,compat=p[5]||null;
+    let bad="",cfCell;
+    if(compat==="INCOMPATIBLE"){
+      bad=` <span class="ovltag badtag" data-tip="Declared server range ${esc(range||"?")} excludes the running server version.">incompatible</span>`;
+      cfCell=`<span class="vtag v-bad">${esc(range||"?")}</span>`;
+    } else if(compat==="MISSING"||compat==="PARSE_FAILED"){
+      cfCell=`<span class="pkg" data-tip="No parseable server range in the manifest.">?</span>`;
+    } else {
+      cfCell=range?`<span class="vtag">${esc(range)}</span>`:`<span class="pkg">·</span>`;
+    }
+    return `<tr><td class="nm">${esc(name)}${bad}</td><td class="pkg">${esc(author)}</td><td class="vtag">${esc(ver)}</td><td data-sval="${esc(range||"")}">${cfCell}</td></tr>`;
+  }).join("");
+  return `<p class="lead"><b>${ap.length}</b> asset pack${ap.length===1?"":"s"} loaded from <code>mods</code>.${incompat?` <b class="v-bad">${incompat}</b> pack${incompat===1?"":"s"} declare a server range that excludes this server.`:""}</p>
+  <div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter asset packs…" data-filter="ap-t"></span><span class="count" data-count="ap-t">${ap.length} rows</span></div>
+  <div class="tscroll"><div class="tcap"><table class="sortable" id="ap-t"><thead><tr>${thc("Asset pack","Asset pack name",{sort:"text"})}${thc("Author","Author or namespace",{sort:"text"})}${thc("Version","Installed version",{sort:"text"})}${thc("Compiled for","Server range from the pack's manifest, checked against the running server.",{sort:"text"})}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
 function logHtml(){
   const log=D.log;
   if(!log||!log.length) return "";
@@ -2144,6 +2166,7 @@ const html=[
   sec("worlds",I.globe,"Worlds","per-world CPU",worldsHtml()),
   sec("system",I.chip,"System & hardware","host / JVM",systemHtml()),
   sec("plugins",I.layers,"Plugins",(D.plugins&&D.plugins.length?D.plugins.length+" loaded":""),pluginsHtml()),
+  sec("assetpacks",I.layers,"Asset packs",(D.assetPacks&&D.assetPacks.length?D.assetPacks.length+" loaded":""),assetPacksHtml()),
   sec("log",I.term,"Server log","captured tail",logHtml()),
   sec("config",I.doc,"Config files & mixins","captured configuration",configHtml()),
   sec("diags",I.doc,"Diagnostics","plugin-contributed sections",diagSectionsHtml())
@@ -2374,6 +2397,11 @@ function buildMarkdown(){
     const incompat=D.plugins.filter(p=>p[5]==="INCOMPATIBLE");
     L.push(`## Plugins`,`${D.plugins.length} loaded (${D.plugins.filter(p=>p[3]).length} core, ${D.plugins.filter(p=>!p[3]).length} community)`);
     incompat.forEach(p=>L.push(`- INCOMPATIBLE: ${p[1]} ${p[2]} declares server range ${p[4]||"?"}`));
+    L.push("");
+  }
+  if(D.assetPacks&&D.assetPacks.length){
+    L.push(`## Asset packs`,`${D.assetPacks.length} loaded`);
+    D.assetPacks.forEach(p=>L.push(`- ${p[1]} ${p[2]}${p[5]==="INCOMPATIBLE"?` — INCOMPATIBLE (declares server range ${p[4]||"?"})`:""}`));
     L.push("");
   }
   if(MIXCONF.list&&MIXCONF.list.length){

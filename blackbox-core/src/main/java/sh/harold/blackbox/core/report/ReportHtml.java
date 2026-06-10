@@ -185,7 +185,8 @@ public final class ReportHtml {
 
     // ---- diagnostics routing --------------------------------------------------------------
 
-    private record Sections(Map<String, String> mixins, Map<String, String> plugins, String serverLog,
+    private record Sections(Map<String, String> mixins, Map<String, String> plugins,
+                            Map<String, String> assetPacks, String serverLog,
                             Map<String, String> environment, Map<String, String> tickSystems,
                             Map<String, String> modCpu, Map<String, String> heapHistogram,
                             Map<String, String> memPools, Map<String, String> entities,
@@ -194,6 +195,7 @@ public final class ReportHtml {
         static Sections route(List<DiagnosticSection> diagnostics) {
             Map<String, String> mixins = null;
             Map<String, String> plugins = null;
+            Map<String, String> assetPacks = null;
             String serverLog = null;
             Map<String, String> environment = null;
             Map<String, String> tickSystems = null;
@@ -214,6 +216,8 @@ public final class ReportHtml {
                     mixins = section.entries();
                 } else if ("Plugins".equals(section.title())) {
                     plugins = section.entries();
+                } else if ("Asset packs".equals(section.title())) {
+                    assetPacks = section.entries();
                 } else if ("Tick systems".equals(section.title())) {
                     tickSystems = section.entries();
                 } else if ("Mod hot-path contribution (JFR)".equals(section.title())) {
@@ -231,7 +235,7 @@ public final class ReportHtml {
                     generic.add(section);
                 }
             }
-            return new Sections(mixins, plugins, serverLog, environment, tickSystems, modCpu,
+            return new Sections(mixins, plugins, assetPacks, serverLog, environment, tickSystems, modCpu,
                 heapHistogram, memPools, entities, configs, generic);
         }
     }
@@ -325,6 +329,7 @@ public final class ReportHtml {
         writeWorldTps(json, timeline, tick);
         writeSubsystems(json, timeline);
         writePlugins(json, sections.plugins());
+        writeAssetPacks(json, sections.assetPacks());
         writeMixins(json, sections.mixins());
         writeLog(json, logLines);
         writeConfigs(json, sections.configs());
@@ -1247,10 +1252,10 @@ public final class ReportHtml {
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         if (snapshot != null) {
             for (HealthSnapshot.World w : snapshot.worlds()) {
-                seen.add(w.name());
+                seen.add(worldShort(w.name()));
                 json.beginObject();
                 json.name("name").value(w.name());
-                writeNullable(json, "samples", samples.get(w.name()));
+                writeNullable(json, "samples", samplesForWorld(samples, w.name()));
                 json.name("stalled").value(w.name().equals(meta.world()));
                 writeNullable(json, "players", w.players() >= 0 ? (long) w.players() : null);
                 if (w.playerNames().isEmpty()) {
@@ -1273,7 +1278,7 @@ public final class ReportHtml {
             }
         }
         for (Map.Entry<String, Long> e : samples.entrySet()) {
-            if (seen.contains(e.getKey())) {
+            if (!seen.add(worldShort(e.getKey()))) {
                 continue;
             }
             json.beginObject();
@@ -1292,6 +1297,23 @@ public final class ReportHtml {
             json.endObject();
         }
         json.endArray();
+    }
+
+    private static Long samplesForWorld(Map<String, Long> samples, String name) {
+        Long exact = samples.get(name);
+        if (exact != null) {
+            return exact;
+        }
+        String shortName = worldShort(name);
+        long sum = 0;
+        boolean found = false;
+        for (Map.Entry<String, Long> e : samples.entrySet()) {
+            if (worldShort(e.getKey()).equals(shortName)) {
+                sum += e.getValue();
+                found = true;
+            }
+        }
+        return found ? sum : null;
     }
 
     /** Per-world TPS series: the top worlds by CPU samples, always including the selected tick world. */
@@ -1344,16 +1366,24 @@ public final class ReportHtml {
     }
 
     private static void writePlugins(JsonWriter json, Map<String, String> plugins) throws IOException {
-        if (plugins == null || plugins.isEmpty()) {
-            json.name("plugins").nullValue();
+        writeModRows(json, "plugins", plugins);
+    }
+
+    private static void writeAssetPacks(JsonWriter json, Map<String, String> assetPacks) throws IOException {
+        writeModRows(json, "assetPacks", assetPacks);
+    }
+
+    private static void writeModRows(JsonWriter json, String key, Map<String, String> entries) throws IOException {
+        if (entries == null || entries.isEmpty()) {
+            json.name(key).nullValue();
             return;
         }
-        json.name("plugins").beginArray();
-        for (Map.Entry<String, String> e : plugins.entrySet()) {
-            String key = e.getKey().replaceFirst(" #\\d+$", "");
-            int colon = key.indexOf(':');
-            String author = colon > 0 ? key.substring(0, colon) : "";
-            String name = colon > 0 ? key.substring(colon + 1) : key;
+        json.name(key).beginArray();
+        for (Map.Entry<String, String> e : entries.entrySet()) {
+            String id = e.getKey().replaceFirst(" #\\d+$", "");
+            int colon = id.indexOf(':');
+            String author = colon > 0 ? id.substring(0, colon) : "";
+            String name = colon > 0 ? id.substring(colon + 1) : id;
             String[] parts = e.getValue().split(" @ ", 3);
             json.beginArray();
             json.value(author);
@@ -1368,7 +1398,10 @@ public final class ReportHtml {
     }
 
     private static void writeMixins(JsonWriter json, Map<String, String> mixins) throws IOException {
-        if (mixins == null || mixins.isEmpty()) {
+        boolean hasContent = mixins != null && mixins.keySet().stream().anyMatch(k ->
+            k.startsWith("Conflict: ")
+                || (!"Bootstrapper".equals(k) && !"Conflicts".equals(k)));
+        if (!hasContent) {
             json.name("mixins").nullValue();
             return;
         }

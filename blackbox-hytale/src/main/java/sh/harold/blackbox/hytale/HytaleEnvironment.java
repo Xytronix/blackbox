@@ -37,11 +37,13 @@ final class HytaleEnvironment {
         putIfPresent(out, "Container runtime", containerRuntime());
         try {
             List<PluginBase> plugins = PluginManager.get().getPlugins();
-            out.put("Mods (count)", String.valueOf(plugins.size()));
-            out.put("Mods", plugins.stream()
-                .map(HytaleEnvironment::describe)
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .collect(Collectors.joining(", ")));
+            if (!plugins.isEmpty()) {
+                out.put("Mods (count)", String.valueOf(plugins.size()));
+                out.put("Mods", plugins.stream()
+                    .map(HytaleEnvironment::describe)
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .collect(Collectors.joining(", ")));
+            }
         } catch (Throwable t) {
             out.put("Mods", "<unavailable: " + t.getClass().getSimpleName() + ">");
         }
