@@ -2,6 +2,8 @@ package sh.harold.blackbox.hytale;
 
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.system.DefaultArg;
+import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractAsyncCommand;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
 import java.io.IOException;
@@ -38,11 +40,15 @@ final class BlackboxCommand extends CommandBase {
         addSubCommand(new StatusCommand(runtime));
         addSubCommand(new ListCommand(runtime));
         addSubCommand(new OpenCommand(runtime));
+        addSubCommand(new TriggersCommand(runtime));
+        addSubCommand(new HistogramCommand(runtime));
+        addSubCommand(new ProfileCommand(runtime));
+        addSubCommand(new ReloadCommand(runtime));
     }
 
     @Override
     protected void executeSync(CommandContext context) {
-        context.sendMessage(Message.raw("Usage: /blackbox dump|status|list|open"));
+        context.sendMessage(Message.raw("Usage: /blackbox dump|status|list|open|triggers|histogram|profile|reload"));
     }
 
     private abstract static class RuntimeAsyncCommand extends AbstractAsyncCommand {
@@ -115,8 +121,10 @@ final class BlackboxCommand extends CommandBase {
 
                 boolean discordEnabled = !runtime.config().discordWebhook().webhookUrl().isBlank();
                 context.sendMessage(Message.raw("Discord webhook: " + (discordEnabled ? "enabled" : "disabled")));
-                context.sendMessage(Message.raw("Web UI: " + (runtime.config().webEnabled() ? "enabled" : "disabled")
-                    + " (not implemented yet)"));
+                if (runtime.profileActive()) {
+                    context.sendMessage(Message.raw("Profile session: active ("
+                        + runtime.profileRemainingSeconds() + "s remaining)"));
+                }
             }, executor());
         }
     }
@@ -155,10 +163,113 @@ final class BlackboxCommand extends CommandBase {
             return runAsync(context, () -> {
                 context.sendMessage(Message.raw("Incidents dir: " + runtime.incidentDir()));
                 context.sendMessage(Message.raw("Config: " + runtime.configPath()));
-                if (runtime.config().webEnabled()) {
-                    context.sendMessage(Message.raw("Web UI is enabled in config, but not implemented yet."));
+            }, executor());
+        }
+    }
+
+    private static final class TriggersCommand extends RuntimeAsyncCommand {
+        private TriggersCommand(BlackboxRuntime runtime) {
+            super("triggers", "Show every trigger's live configuration", runtime);
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeAsync(CommandContext context) {
+            return runAsync(context, () -> {
+                var policy = runtime.config().triggerPolicy();
+                var detectors = policy.detectors();
+                context.sendMessage(Message.raw("Triggers (cooldown=" + policy.cooldown()
+                    + ", debounce=" + policy.debounce() + "):"));
+                context.sendMessage(Message.raw("  heartbeat stall: degraded >= " + policy.stallDegradedMs()
+                    + " ms, critical >= " + policy.stallCriticalMs() + " ms"));
+                context.sendMessage(Message.raw("  tick degraded: avg >= " + policy.tickAvgDegradedMs()
+                    + " ms, critical >= " + policy.tickAvgCriticalMs() + " ms"));
+                context.sendMessage(Message.raw("  world failure: always on"));
+                context.sendMessage(Message.raw("  deadlock: "
+                    + (runtime.deadlockArmed() ? "on" : "disabled")));
+                context.sendMessage(Message.raw("  heap pressure: "
+                    + (runtime.heapPressureArmed()
+                        ? ">= " + detectors.heapPressurePct() + "% after GC sustained " + detectors.heapPressureSustain()
+                        : "disabled")));
+                context.sendMessage(Message.raw("  gc pressure: "
+                    + (runtime.gcPressureArmed()
+                        ? ">= " + detectors.gcPressurePct() + "% of " + detectors.gcPressureWindow() + " window"
+                        : "disabled")));
+                context.sendMessage(Message.raw("  cpu saturation: "
+                    + (runtime.cpuSaturationArmed()
+                        ? ">= " + detectors.cpuSaturationPct() + "% sustained " + detectors.cpuSaturationSustain()
+                        : "disabled")));
+                context.sendMessage(Message.raw("  net saturation: "
+                    + (runtime.netSaturationArmed()
+                        ? "in >= " + detectors.netInMbps() + " Mbit/s, out >= " + detectors.netOutMbps()
+                            + " Mbit/s sustained " + detectors.netSustain()
+                        : "disabled")));
+                context.sendMessage(Message.raw("  player drop: "
+                    + (runtime.playerDropArmed()
+                        ? ">= " + detectors.playerDropPct() + "% within " + detectors.playerDropWindow()
+                            + ", min " + detectors.playerDropMinPlayers() + " players"
+                        : "disabled")));
+            }, executor());
+        }
+    }
+
+    private static final class HistogramCommand extends RuntimeAsyncCommand {
+        private HistogramCommand(BlackboxRuntime runtime) {
+            super("histogram", "Show the top heap classes (walks the heap)", runtime);
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeAsync(CommandContext context) {
+            return runAsync(context, () -> {
+                context.sendMessage(Message.raw(
+                    "Walking the heap; this may pause the server for seconds on large heaps."));
+                List<String> lines = sh.harold.blackbox.core.capture.HeapHistogram.topLines(10);
+                if (lines.isEmpty()) {
+                    context.sendMessage(Message.raw("Heap histogram unavailable on this JVM."));
+                    return;
+                }
+                context.sendMessage(Message.raw("Top classes by heap bytes:"));
+                for (String line : lines) {
+                    context.sendMessage(Message.raw("  " + line));
                 }
             }, executor());
+        }
+    }
+
+    private static final class ProfileCommand extends RuntimeAsyncCommand {
+        private final DefaultArg<Integer> minutesArg =
+            withDefaultArg("minutes", "Profiling duration in minutes (1-30)", ArgTypes.INTEGER, 5, "5");
+
+        private ProfileCommand(BlackboxRuntime runtime) {
+            super("profile", "Record with the high-fidelity profile preset, then capture", runtime);
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeAsync(CommandContext context) {
+            return runAsync(context, () -> {
+                Integer requested = context.get(minutesArg);
+                int minutes = Math.max(1, Math.min(30, requested == null ? 5 : requested));
+                String error = runtime.startProfileSession(minutes);
+                if (error != null) {
+                    context.sendMessage(Message.raw(error));
+                    return;
+                }
+                context.sendMessage(Message.raw(
+                    "Profile session started: the rolling buffer was discarded and a fresh high-fidelity "
+                    + "recording is running."));
+                context.sendMessage(Message.raw("A capture fires automatically in " + minutes
+                    + " min, then the recording reverts to the configured preset."));
+            }, executor());
+        }
+    }
+
+    private static final class ReloadCommand extends RuntimeAsyncCommand {
+        private ReloadCommand(BlackboxRuntime runtime) {
+            super("reload", "Reload blackbox.json without a restart", runtime);
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeAsync(CommandContext context) {
+            return runAsync(context, () -> context.sendMessage(Message.raw(runtime.reload())), executor());
         }
     }
 

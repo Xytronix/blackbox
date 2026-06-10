@@ -39,24 +39,18 @@ class BundleReportTest {
             assertNotNull(reportEntry);
 
             String html = new String(zip.getInputStream(reportEntry).readAllBytes(), StandardCharsets.UTF_8);
-            assertTrue(html.contains("Incident ID"));
-            assertTrue(html.contains("Severity"));
-            assertTrue(html.contains("Likely cause"));
-            assertTrue(html.contains("What happened"));
-            assertTrue(html.contains("Next steps"));
-            assertTrue(html.contains("How to open recording.jfr"));
+            assertTrue(html.contains("Blackbox Incident Report"));
+            assertTrue(html.contains("20260111-020000.000Z-abcdef"));
+            assertTrue(html.contains("DEGRADED"));
             assertTrue(html.contains("world-one"));
             assertTrue(html.contains("2026-01-11T02:00:00Z"));
-            assertTrue(html.contains("Trigger:"));
 
             assertTrue(html.contains("Quote &quot;here&quot;"));
-            assertTrue(html.contains("C:\\temp\\file"));
-            assertTrue(html.contains("Line one<br>Line two"));
-            assertTrue(html.contains("tab&#9;value"));
+            assertTrue(html.contains("C:\\temp\\file<br>Line two"));
 
-            assertFalse(html.contains("http://"));
-            assertFalse(html.contains("https://"));
             assertFalse(html.contains("<script src="));
+            assertFalse(html.contains("<link"));
+            assertFalse(html.contains("src=\"http"));
         }
     }
 

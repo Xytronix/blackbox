@@ -1,6 +1,7 @@
 package sh.harold.blackbox.core.jfr;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -89,6 +90,35 @@ class JfrControllerTest {
             Recording recording = extractRecording(controller);
             assertEquals("false", recording.getSettings().get("jdk.CPULoad#enabled"));
         }
+    }
+
+    @Test
+    void restartSwapsRecordingAndPreservesNameAndCaps(@TempDir Path tempDir) throws Exception {
+        assertTrue(FlightRecorder.isAvailable(), "JFR is not available in this runtime.");
+        Path dumpPath = tempDir.resolve("recording.jfr");
+
+        try (JfrController controller = new JfrController(Duration.ofSeconds(60), 16L * 1024L * 1024L,
+            "blackbox-test")) {
+            controller.start();
+            Recording before = extractRecording(controller);
+
+            controller.restart("profile");
+            Recording profiled = extractRecording(controller);
+            assertNotSame(before, profiled);
+            assertEquals("blackbox-test", profiled.getName());
+            assertEquals(Duration.ofSeconds(60), profiled.getMaxAge());
+            assertEquals(16L * 1024L * 1024L, profiled.getMaxSize());
+
+            controller.restart(null);
+            Recording reverted = extractRecording(controller);
+            assertNotSame(profiled, reverted);
+            assertEquals("blackbox-test", reverted.getName());
+
+            controller.dump(dumpPath);
+        }
+
+        assertTrue(Files.exists(dumpPath), "Expected JFR dump to exist after restart.");
+        assertTrue(Files.size(dumpPath) > 0, "Expected JFR dump to be non-empty after restart.");
     }
 
     private static Recording extractRecording(JfrController controller) throws Exception {

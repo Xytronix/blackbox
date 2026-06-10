@@ -33,9 +33,14 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
     private static final int MAX_LOG_TAIL_BYTES = 256 * 1024;
 
     private final HeartbeatRegistry heartbeatRegistry;
-    private final int logTailLines;
+    private final java.util.function.IntSupplier logTailLines;
 
     HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry, int logTailLines) {
+        this(heartbeatRegistry, () -> logTailLines);
+    }
+
+    /** The supplier form keeps Capture.LogTailLines hot-reloadable for the bundle extras. */
+    HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry, java.util.function.IntSupplier logTailLines) {
         this.heartbeatRegistry = heartbeatRegistry;
         this.logTailLines = logTailLines;
     }
@@ -55,7 +60,7 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
         extras.add(new BundleAttachment("extras/threads.txt",
             ThreadDumper.dump().getBytes(StandardCharsets.UTF_8)));
 
-        if (logTailLines > 0) {
+        if (logTailLines.getAsInt() > 0) {
             String logTail = buildServerLogTail();
             if (!logTail.isEmpty()) {
                 extras.add(new BundleAttachment("extras/server-log.txt",
@@ -135,12 +140,25 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
     }
 
     private String buildServerLogTail() {
-        Path logsDir = Paths.get("logs");
-        if (!Files.isDirectory(logsDir)) {
+        Path latestLog = latestServerLog();
+        if (latestLog == null) {
             return "";
         }
+        try {
+            return readTail(latestLog, logTailLines.getAsInt());
+        } catch (IOException e) {
+            LOGGER.log(System.Logger.Level.WARNING, "Failed to read server log tail.", e);
+            return "";
+        }
+    }
+
+    static Path latestServerLog() {
+        Path logsDir = Paths.get("logs");
+        if (!Files.isDirectory(logsDir)) {
+            return null;
+        }
         try (Stream<Path> logFiles = Files.list(logsDir)) {
-            Path latestLog = logFiles
+            return logFiles
                 .filter(p -> p.getFileName().toString().endsWith(".log"))
                 .max(Comparator.comparingLong(p -> {
                     try {
@@ -150,15 +168,9 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
                     }
                 }))
                 .orElse(null);
-
-            if (latestLog == null) {
-                return "";
-            }
-
-            return readTail(latestLog, logTailLines);
         } catch (IOException e) {
-            LOGGER.log(System.Logger.Level.WARNING, "Failed to read server log tail.", e);
-            return "";
+            LOGGER.log(System.Logger.Level.WARNING, "Failed to locate server log.", e);
+            return null;
         }
     }
 

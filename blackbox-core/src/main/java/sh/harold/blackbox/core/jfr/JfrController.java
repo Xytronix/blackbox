@@ -23,6 +23,7 @@ public final class JfrController implements AutoCloseable {
     private final long maxSizeBytes;
     private final String recordingName;
     private final List<String> disabledEvents;
+    private final String configurationName;
     private Recording recording;
     private final System.Logger logger = System.getLogger(JfrController.class.getName());
 
@@ -31,22 +32,55 @@ public final class JfrController implements AutoCloseable {
     }
 
     public JfrController(Duration maxAge, long maxSizeBytes, String recordingName, List<String> disabledEvents) {
+        this(maxAge, maxSizeBytes, recordingName, disabledEvents, DEFAULT_CONFIGURATION);
+    }
+
+    /**
+     * @param configurationName JFR settings profile: "default" (about 1% overhead) or "profile"
+     *                          (higher-fidelity sampling, about 2% overhead, the profiler mode)
+     */
+    public JfrController(Duration maxAge, long maxSizeBytes, String recordingName,
+                         List<String> disabledEvents, String configurationName) {
         this.maxAge = Objects.requireNonNull(maxAge, "maxAge");
         this.maxSizeBytes = maxSizeBytes;
         this.recordingName = Objects.requireNonNull(recordingName, "recordingName");
         this.disabledEvents = List.copyOf(Objects.requireNonNull(disabledEvents, "disabledEvents"));
+        this.configurationName = configurationName == null || configurationName.isBlank()
+            ? DEFAULT_CONFIGURATION : configurationName;
     }
 
     public void start() {
         if (recording != null) {
             return;
         }
-        Recording created = createConfiguredRecording(DEFAULT_CONFIGURATION);
+        startWith(configurationName);
+    }
+
+    /**
+     * Discards the current recording (the rolling buffer is lost) and starts a fresh one with
+     * the given settings profile; null or blank reverts to the configured profile. Used by the
+     * on-demand profiler mode. JFR treats {@code setMaxAge(null)} and {@code setMaxSize(0)} as
+     * no cap; with neither cap set the on-disk recording can grow without bound.
+     */
+    public synchronized void restart(String configurationOverride) {
+        close();
+        startWith(configurationOverride == null || configurationOverride.isBlank()
+            ? configurationName : configurationOverride);
+    }
+
+    private void startWith(String configuration) {
+        Recording created = createConfiguredRecording(configuration);
         created.setName(recordingName);
         created.setToDisk(true);
-        created.setMaxAge(maxAge);
-        created.setMaxSize(maxSizeBytes);
+        created.setMaxAge(maxAge.isZero() ? null : maxAge);
+        created.setMaxSize(Math.max(0L, maxSizeBytes));
+        if (maxAge.isZero() && maxSizeBytes <= 0L) {
+            logger.log(System.Logger.Level.WARNING,
+                "JFR recording has no age or size cap (both unlimited); the on-disk recording can grow until it "
+                + "fills the disk. Set Jfr.MaxAge or Jfr.MaxSizeBytes to a positive value to bound it.");
+        }
         enableMarkerEvent(created);
+        enableOldObjectSampling(created);
         disableConfiguredEvents(created);
         created.start();
         this.recording = created;
@@ -109,6 +143,22 @@ public final class JfrController implements AutoCloseable {
                 .withThreshold(Duration.ZERO);
         } catch (IllegalArgumentException e) {
             logger.log(System.Logger.Level.WARNING, "Failed to enable marker event.", e);
+        }
+    }
+
+    /**
+     * Enables long-lived-object sampling so the report can list leak candidates. The "default"
+     * configuration leaves jdk.OldObjectSample off; cutoff "0 ns" keeps every sample eligible
+     * (the JMC leak-profiling recipe) while the sampler's fixed internal queue bounds the cost.
+     * Disable via Jfr.DisabledEvents=["jdk.OldObjectSample"] if unwanted.
+     */
+    private void enableOldObjectSampling(Recording recording) {
+        try {
+            recording.enable("jdk.OldObjectSample")
+                .withStackTrace()
+                .with("cutoff", "0 ns");
+        } catch (Exception e) {
+            logger.log(System.Logger.Level.WARNING, "Failed to enable old-object sampling.", e);
         }
     }
 

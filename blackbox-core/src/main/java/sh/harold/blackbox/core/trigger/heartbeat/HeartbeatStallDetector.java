@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import sh.harold.blackbox.core.trigger.TriggerEvent;
 import sh.harold.blackbox.core.trigger.TriggerKind;
 
@@ -32,8 +33,11 @@ public final class HeartbeatStallDetector {
 
     public List<TriggerEvent> check() {
         Instant now = clock.instant();
+        Set<String> scopes = registry.scopes();
+        inStall.keySet().retainAll(scopes);
+        lastSeenBeat.keySet().retainAll(scopes);
         List<TriggerEvent> events = new ArrayList<>();
-        for (String scope : registry.scopes()) {
+        for (String scope : scopes) {
             Instant last = registry.lastBeat(scope);
             if (last == null) {
                 continue;
