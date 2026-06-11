@@ -3,6 +3,9 @@ package sh.harold.blackbox.core.trigger;
 import java.util.Objects;
 import sh.harold.blackbox.core.incident.Severity;
 
+/**
+ * Outcome of trigger evaluation.
+ */
 public record TriggerResult(
     TriggerDecision decision,
     Severity severity,

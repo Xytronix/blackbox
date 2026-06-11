@@ -20,6 +20,9 @@ import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.json.IncidentJson;
 import sh.harold.blackbox.core.report.ReportHtml;
 
+/**
+ * Builds deterministic incident bundles.
+ */
 public final class BundleBuilder {
     private final Clock clock;
     private final System.Logger logger;

@@ -8,6 +8,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Objects;
 
+/**
+ * Async HTTP transport for Discord webhook delivery.
+ */
 public final class HttpClientWebhookTransport implements WebhookTransport {
     private final HttpClient client;
     private final Duration requestTimeout;

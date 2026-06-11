@@ -12,6 +12,9 @@ import jdk.jfr.Configuration;
 import jdk.jfr.EventSettings;
 import jdk.jfr.Recording;
 
+/**
+ * Controls a single rolling JFR recording and exposes a minimal API for dumping it.
+ */
 public final class JfrController implements AutoCloseable {
     private static final String DEFAULT_CONFIGURATION = "default";
     private static final String DUMP_MARKER_PREFIX = "blackbox dump:";

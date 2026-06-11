@@ -2,9 +2,11 @@ package sh.harold.blackbox.core.capture;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +36,13 @@ import sh.harold.blackbox.core.trigger.TriggerEngine;
 import sh.harold.blackbox.core.trigger.TriggerEvent;
 import sh.harold.blackbox.core.trigger.TriggerResult;
 
+/**
+ * Orchestrates trigger evaluation through capture and retention.
+ */
 public final class CapturePipeline {
+    private static final String FAILED_DIR_NAME = "failed";
+    private static final int FAILED_RECORDING_CAP = 5;
+
     private final Clock clock;
     private final TriggerEngine triggerEngine;
     private final RecordingDumper dumper;
@@ -293,14 +301,53 @@ public final class CapturePipeline {
             return recovered;
         }
         for (Path recording : recordings) {
-            recoverFromRecording(recording, lastModified(recording)).ifPresent(recovered::add);
-            try {
-                Files.deleteIfExists(recording);
-            } catch (Exception e) {
-                logger.log(System.Logger.Level.WARNING, "Failed to delete recovered recording " + recording + ".", e);
+            Optional<IncidentId> id = recoverFromRecording(recording, lastModified(recording));
+            if (id.isPresent()) {
+                recovered.add(id.get());
+                try {
+                    Files.deleteIfExists(recording);
+                } catch (Exception e) {
+                    logger.log(System.Logger.Level.WARNING, "Failed to delete recovered recording " + recording + ".", e);
+                }
+            } else {
+                setAsideFailedRecording(dir, recording);
             }
         }
+        pruneFailedRecordings(dir.resolve(FAILED_DIR_NAME));
         return recovered;
+    }
+
+    private void setAsideFailedRecording(Path dir, Path recording) {
+        try {
+            Path failedDir = dir.resolve(FAILED_DIR_NAME);
+            Files.createDirectories(failedDir);
+            Files.move(recording, failedDir.resolve(recording.getFileName().toString()),
+                StandardCopyOption.REPLACE_EXISTING);
+            logger.log(System.Logger.Level.WARNING,
+                "Could not rebuild a bundle from " + recording + "; moved it to " + failedDir
+                    + " for inspection. It may still open in JDK Mission Control.");
+        } catch (Exception e) {
+            logger.log(System.Logger.Level.WARNING,
+                "Failed to set aside unrecoverable recording " + recording + ".", e);
+        }
+    }
+
+    private void pruneFailedRecordings(Path failedDir) {
+        if (!Files.isDirectory(failedDir)) {
+            return;
+        }
+        try (Stream<Path> stream = Files.list(failedDir)) {
+            List<Path> files = stream
+                .filter(Files::isRegularFile)
+                .filter(p -> p.getFileName().toString().endsWith(".jfr"))
+                .sorted(Comparator.comparing(this::lastModified).reversed())
+                .toList();
+            for (int i = FAILED_RECORDING_CAP; i < files.size(); i++) {
+                Files.deleteIfExists(files.get(i));
+            }
+        } catch (Exception e) {
+            logger.log(System.Logger.Level.WARNING, "Failed to prune " + failedDir + ".", e);
+        }
     }
 
     private Instant lastModified(Path file) {

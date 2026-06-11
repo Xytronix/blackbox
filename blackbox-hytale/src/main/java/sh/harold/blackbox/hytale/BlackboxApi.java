@@ -12,6 +12,13 @@ import sh.harold.blackbox.core.incident.DiagnosticSection;
 import sh.harold.blackbox.core.jfr.BlackboxPluginEvent;
 import sh.harold.blackbox.core.jfr.BlackboxPluginMetricEvent;
 
+/**
+ * Public API for third-party plugins to integrate with Blackbox.
+ * Example:
+ * BlackboxApi.registerExtras((report, event) -> List.of(
+ *     new BundleAttachment("extras/my-plugin.txt", myData.getBytes())
+ * ));
+ */
 public final class BlackboxApi {
     private static volatile BlackboxRuntime runtime;
     private static final List<DiagnosticRegistration> DIAGNOSTICS = new CopyOnWriteArrayList<>();

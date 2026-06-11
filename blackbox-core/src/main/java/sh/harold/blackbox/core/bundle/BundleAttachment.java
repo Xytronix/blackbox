@@ -2,6 +2,9 @@ package sh.harold.blackbox.core.bundle;
 
 import java.util.Objects;
 
+/**
+ * Binary attachment to include in the incident bundle zip.
+ */
 public record BundleAttachment(String pathInZip, byte[] data) {
     public BundleAttachment {
         Objects.requireNonNull(pathInZip, "pathInZip");

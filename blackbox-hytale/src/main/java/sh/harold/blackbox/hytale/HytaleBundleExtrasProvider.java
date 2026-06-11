@@ -253,6 +253,7 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
             return false;
         }
         try {
+            // false => link/load only, do not run static initializers.
             Class.forName(className, false, classLoader);
             return true;
         } catch (ClassNotFoundException e) {

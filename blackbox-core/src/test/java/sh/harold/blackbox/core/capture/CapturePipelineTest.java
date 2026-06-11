@@ -222,6 +222,36 @@ class CapturePipelineTest {
         }
     }
 
+    @Test
+    void recoverOrphansSetsAsideRecordingsItCannotBundle(@TempDir Path tempDir) throws Exception {
+        Path incidentDir = tempDir.resolve("incidents");
+        Files.writeString(incidentDir, "blocks directory creation");
+        Path recoverDir = tempDir.resolve("recover");
+        Files.createDirectories(recoverDir);
+        Path recording = recoverDir.resolve("rolling-1.jfr");
+        Files.write(recording, new byte[] {1, 2, 3});
+        Clock clock = Clock.fixed(Instant.parse("2026-01-11T00:00:00Z"), ZoneOffset.UTC);
+
+        CapturePipeline pipeline = new CapturePipeline(
+            clock,
+            new TriggerEngine(clock, new TriggerPolicy(Duration.ofSeconds(30), Duration.ZERO, 1000, 5000, 100, 250)),
+            new FakeRecordingDumper(new byte[] {1}),
+            new BundleBuilder(clock),
+            new RetentionManager(clock, System.getLogger("retention-test"), FileDeleter.defaultDeleter()),
+            IncidentNotifier.noop(),
+            incidentDir,
+            tempDir.resolve("temp"),
+            new CapturePolicy(new RetentionPolicy(0, 0L, null)),
+            System.getLogger("recovery-test")
+        );
+
+        List<IncidentId> recovered = pipeline.recoverOrphans(recoverDir);
+
+        assertTrue(recovered.isEmpty());
+        assertFalse(Files.exists(recording));
+        assertTrue(Files.exists(recoverDir.resolve("failed").resolve("rolling-1.jfr")));
+    }
+
     private static int countZips(Path incidentDir) throws Exception {
         if (!Files.exists(incidentDir)) {
             return 0;

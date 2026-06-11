@@ -12,6 +12,9 @@ import java.util.Set;
 import sh.harold.blackbox.core.trigger.TriggerEvent;
 import sh.harold.blackbox.core.trigger.TriggerKind;
 
+/**
+ * Emits heartbeat stall trigger events on transition into a stalled state.
+ */
 public final class HeartbeatStallDetector {
     private final Clock clock;
     private final HeartbeatRegistry registry;

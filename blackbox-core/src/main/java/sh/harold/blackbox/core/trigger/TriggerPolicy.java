@@ -3,6 +3,9 @@ package sh.harold.blackbox.core.trigger;
 import java.time.Duration;
 import java.util.Objects;
 
+/**
+ * Defines trigger cooldowns and stall thresholds.
+ */
 public record TriggerPolicy(
     Duration cooldown,
     Duration debounce,

@@ -7,6 +7,9 @@ import java.util.Set;
 import sh.harold.blackbox.core.bundle.BundleArtifacts;
 import sh.harold.blackbox.core.retention.RetentionPolicy;
 
+/**
+ * Capture policy container.
+ */
 public record CapturePolicy(
     RetentionPolicy retention,
     boolean enabled,

@@ -8,6 +8,9 @@ import sh.harold.blackbox.core.capture.CapturePolicy;
 import sh.harold.blackbox.core.notify.discord.DiscordWebhookConfig;
 import sh.harold.blackbox.core.trigger.TriggerPolicy;
 
+/**
+ * Parsed configuration for Blackbox.
+ */
 public record BlackboxConfig(
     Duration jfrMaxAge,
     long jfrMaxSizeBytes,

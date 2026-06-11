@@ -5,6 +5,9 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
 
+/**
+ * Minimal JSON writer with stable ordering controlled by call sites.
+ */
 public final class JsonWriter {
     private final Appendable out;
     private final Deque<Context> stack = new ArrayDeque<>();

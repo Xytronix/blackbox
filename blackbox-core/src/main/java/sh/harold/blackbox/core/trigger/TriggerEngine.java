@@ -7,6 +7,9 @@ import java.util.Map;
 import java.util.Objects;
 import sh.harold.blackbox.core.incident.Severity;
 
+/**
+ * Applies cooldown and debounce policies to trigger events.
+ */
 public final class TriggerEngine {
     private final Clock clock;
     private final TriggerPolicy policy;

@@ -19,6 +19,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
+/**
+ * Enforces on-disk retention for incident bundles.
+ */
 public final class RetentionManager {
     private static final DateTimeFormatter INCIDENT_TIMESTAMP = new DateTimeFormatterBuilder()
         .appendPattern("yyyyMMdd-HHmmss.SSS")

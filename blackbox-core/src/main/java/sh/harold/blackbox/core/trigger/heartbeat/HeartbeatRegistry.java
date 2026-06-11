@@ -7,6 +7,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Stores last heartbeat timestamps per scope.
+ */
 public final class HeartbeatRegistry {
     private final Clock clock;
     private final Map<String, Instant> beats = new ConcurrentHashMap<>();

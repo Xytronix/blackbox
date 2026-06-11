@@ -22,6 +22,11 @@ import sh.harold.blackbox.core.trigger.DetectorPolicy;
 import sh.harold.blackbox.core.trigger.ModulePolicy;
 import sh.harold.blackbox.core.trigger.TriggerPolicy;
 
+/**
+ * Loads {@link BlackboxConfig} via Hytale's built-in {@link Config} system.
+ *
+ * <p>Stored at {@code <pluginDataDir>/blackbox.json}.
+ */
 final class HytaleBlackboxConfig {
     private static final String FILE_NAME = "blackbox";
 

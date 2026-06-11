@@ -27,6 +27,9 @@ import sh.harold.blackbox.core.incident.IncidentMetadata;
 import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.json.JsonWriter;
 
+/**
+ * Renders a self-contained incident report HTML page.
+ */
 public final class ReportHtml {
     private static final String TEMPLATE_RESOURCE = "report-template.html";
     private static final String TITLE_TOKEN = "__TITLE__";

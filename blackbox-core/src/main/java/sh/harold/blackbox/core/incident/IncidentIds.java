@@ -7,6 +7,9 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Generates stable incident identifiers for the current JVM run.
+ */
 public final class IncidentIds {
     private static final DateTimeFormatter FORMATTER =
         DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss.SSSZ").withLocale(Locale.ROOT);

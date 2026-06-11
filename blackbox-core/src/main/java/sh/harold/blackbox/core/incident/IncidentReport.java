@@ -6,6 +6,9 @@ import java.util.Objects;
 
 import sh.harold.blackbox.core.health.HealthSnapshot;
 
+/**
+ * Full report data used to build an incident bundle.
+ */
 public record IncidentReport(
     IncidentMetadata meta,
     IncidentSummary summary,

@@ -1,5 +1,8 @@
 package sh.harold.blackbox.core.env;
 
+/**
+ * Collects minimal JVM and OS metadata for incident bundles.
+ */
 public final class EnvCollector {
     private EnvCollector() {
     }
