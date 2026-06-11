@@ -3,9 +3,6 @@ package sh.harold.blackbox.core.notify.discord;
 import java.time.Duration;
 import java.util.Objects;
 
-/**
- * Configuration for Discord webhook notifications.
- */
 public record DiscordWebhookConfig(
     String webhookUrl,
     Duration cooldown,

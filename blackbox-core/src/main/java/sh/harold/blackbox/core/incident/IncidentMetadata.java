@@ -3,9 +3,6 @@ package sh.harold.blackbox.core.incident;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * Identifies what happened and when.
- */
 public record IncidentMetadata(
     IncidentId id,
     Instant createdAt,

@@ -2,9 +2,6 @@ package sh.harold.blackbox.core.retention;
 
 import java.time.Duration;
 
-/**
- * Defines retention limits for stored incident bundles.
- */
 public record RetentionPolicy(
     int maxCount,
     long maxTotalBytes,

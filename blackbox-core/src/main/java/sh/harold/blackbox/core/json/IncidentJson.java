@@ -12,13 +12,6 @@ import sh.harold.blackbox.core.incident.IncidentMetadata;
 import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.incident.IncidentSummary;
 
-/**
- * Deterministic JSON writer for incident reports.
- *
- * Field order:
- * - meta: id, createdAt, severity, trigger, world, headline
- * - summary: likelyCause, whatHappened, nextSteps
- */
 public final class IncidentJson {
     private IncidentJson() {
     }

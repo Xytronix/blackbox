@@ -4,9 +4,6 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Trigger signal emitted by detectors or manual sources.
- */
 public record TriggerEvent(
     TriggerKind kind,
     String scope,

@@ -13,9 +13,6 @@ import sh.harold.blackbox.core.incident.IncidentMetadata;
 import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.json.JsonWriter;
 
-/**
- * Sends incident notifications to a Discord webhook.
- */
 public final class DiscordWebhookNotifier implements IncidentNotifier {
     private final Clock clock;
     private final System.Logger logger;

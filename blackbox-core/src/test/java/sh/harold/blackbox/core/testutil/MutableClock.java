@@ -6,9 +6,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Objects;
 
-/**
- * Mutable clock for deterministic tests.
- */
 public final class MutableClock extends Clock {
     private Instant instant;
     private final ZoneId zone;

@@ -2,6 +2,7 @@ package sh.harold.blackbox.core.bundle;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
@@ -89,6 +90,29 @@ class BundleBuilderTest {
         try (ZipFile zip = new ZipFile(outputZip.toFile())) {
             assertNotNull(zip.getEntry("extras/alpha.txt"));
             assertNotNull(zip.getEntry("extras/zeta.txt"));
+        }
+    }
+
+    @Test
+    void artifacts_jfrOnlyExcludesOthers(@TempDir Path tempDir) throws Exception {
+        Path recording = tempDir.resolve("recording.jfr");
+        Files.write(recording, new byte[] {1, 2, 3});
+
+        Clock clock = Clock.fixed(Instant.parse("2024-05-06T07:08:09.010Z"), ZoneOffset.UTC);
+        IncidentReport report = simpleReport(clock);
+
+        List<BundleAttachment> extras = List.of(
+            new BundleAttachment("extras/threads.txt", "t".getBytes(StandardCharsets.UTF_8)));
+
+        Path outputZip = tempDir.resolve("jfronly.zip");
+        new BundleBuilder(clock).build(report, recording, outputZip, extras, java.util.Set.of("jfr"));
+
+        try (ZipFile zip = new ZipFile(outputZip.toFile())) {
+            assertNotNull(zip.getEntry("incident.json"));
+            assertNotNull(zip.getEntry("recording.jfr"));
+            assertNull(zip.getEntry("report.html"));
+            assertNull(zip.getEntry("env/jvm.txt"));
+            assertNull(zip.getEntry("extras/threads.txt"));
         }
     }
 

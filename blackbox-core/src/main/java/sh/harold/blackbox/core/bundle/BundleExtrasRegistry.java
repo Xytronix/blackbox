@@ -39,6 +39,23 @@ public final class BundleExtrasRegistry implements BundleExtrasProvider {
         return all;
     }
 
+    @Override
+    public List<BundleAttachment> historicalExtras() {
+        List<BundleAttachment> all = new ArrayList<>();
+        for (BundleExtrasProvider provider : providers) {
+            try {
+                List<BundleAttachment> providerExtras = provider.historicalExtras();
+                if (providerExtras != null) {
+                    all.addAll(providerExtras);
+                }
+            } catch (Exception e) {
+                logger.log(System.Logger.Level.WARNING,
+                    "BundleExtrasProvider " + provider.getClass().getName() + " failed.", e);
+            }
+        }
+        return all;
+    }
+
     public int size() {
         return providers.size();
     }

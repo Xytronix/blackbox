@@ -33,11 +33,18 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
     private static final int MAX_LOG_TAIL_BYTES = 256 * 1024;
 
     private final HeartbeatRegistry heartbeatRegistry;
-    private final int logTailLines;
+    private final java.util.function.IntSupplier logTailLines;
+    private final Path metricsDir;
 
-    HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry, int logTailLines) {
+    HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry, int logTailLines, Path metricsDir) {
+        this(heartbeatRegistry, () -> logTailLines, metricsDir);
+    }
+
+    HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry,
+                               java.util.function.IntSupplier logTailLines, Path metricsDir) {
         this.heartbeatRegistry = heartbeatRegistry;
         this.logTailLines = logTailLines;
+        this.metricsDir = metricsDir;
     }
 
     @Override
@@ -55,7 +62,7 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
         extras.add(new BundleAttachment("extras/threads.txt",
             ThreadDumper.dump().getBytes(StandardCharsets.UTF_8)));
 
-        if (logTailLines > 0) {
+        if (logTailLines.getAsInt() > 0) {
             String logTail = buildServerLogTail();
             if (!logTail.isEmpty()) {
                 extras.add(new BundleAttachment("extras/server-log.txt",
@@ -63,7 +70,34 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
             }
         }
 
+        extras.addAll(historicalExtras());
         return extras;
+    }
+
+    @Override
+    public List<BundleAttachment> historicalExtras() {
+        List<BundleAttachment> out = new ArrayList<>();
+        if (metricsDir == null || !Files.isDirectory(metricsDir)) {
+            return out;
+        }
+        try (Stream<Path> files = Files.list(metricsDir)) {
+            List<Path> recent = files
+                .filter(Files::isRegularFile)
+                .filter(p -> {
+                    String name = p.getFileName().toString();
+                    return name.startsWith("health-") && name.endsWith(".csv");
+                })
+                .sorted(Comparator.comparing((Path p) -> p.getFileName().toString()).reversed())
+                .limit(2)
+                .toList();
+            for (Path file : recent) {
+                out.add(new BundleAttachment("extras/metrics/" + file.getFileName(),
+                    Files.readAllBytes(file)));
+            }
+        } catch (IOException e) {
+            LOGGER.log(System.Logger.Level.WARNING, "Failed to attach metrics CSV.", e);
+        }
+        return out;
     }
 
     private String buildServerText() {
@@ -135,12 +169,25 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
     }
 
     private String buildServerLogTail() {
-        Path logsDir = Paths.get("logs");
-        if (!Files.isDirectory(logsDir)) {
+        Path latestLog = latestServerLog();
+        if (latestLog == null) {
             return "";
         }
+        try {
+            return readTail(latestLog, logTailLines.getAsInt());
+        } catch (IOException e) {
+            LOGGER.log(System.Logger.Level.WARNING, "Failed to read server log tail.", e);
+            return "";
+        }
+    }
+
+    static Path latestServerLog() {
+        Path logsDir = Paths.get("logs");
+        if (!Files.isDirectory(logsDir)) {
+            return null;
+        }
         try (Stream<Path> logFiles = Files.list(logsDir)) {
-            Path latestLog = logFiles
+            return logFiles
                 .filter(p -> p.getFileName().toString().endsWith(".log"))
                 .max(Comparator.comparingLong(p -> {
                     try {
@@ -150,15 +197,9 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
                     }
                 }))
                 .orElse(null);
-
-            if (latestLog == null) {
-                return "";
-            }
-
-            return readTail(latestLog, logTailLines);
         } catch (IOException e) {
-            LOGGER.log(System.Logger.Level.WARNING, "Failed to read server log tail.", e);
-            return "";
+            LOGGER.log(System.Logger.Level.WARNING, "Failed to locate server log.", e);
+            return null;
         }
     }
 
@@ -212,7 +253,6 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
             return false;
         }
         try {
-            // false => link/load only, do not run static initializers.
             Class.forName(className, false, classLoader);
             return true;
         } catch (ClassNotFoundException e) {
