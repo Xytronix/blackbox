@@ -5,9 +5,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import sh.harold.blackbox.core.trigger.TriggerEvent;
 import sh.harold.blackbox.core.trigger.TriggerKind;
 
@@ -32,8 +34,11 @@ public final class HeartbeatStallDetector {
 
     public List<TriggerEvent> check() {
         Instant now = clock.instant();
+        Set<String> scopes = registry.scopes();
+        inStall.keySet().retainAll(scopes);
+        lastSeenBeat.keySet().retainAll(scopes);
         List<TriggerEvent> events = new ArrayList<>();
-        for (String scope : registry.scopes()) {
+        for (String scope : scopes) {
             Instant last = registry.lastBeat(scope);
             if (last == null) {
                 continue;
@@ -48,12 +53,13 @@ public final class HeartbeatStallDetector {
             boolean wasStalled = inStall.getOrDefault(scope, false);
             if (stalled && !wasStalled) {
                 inStall.put(scope, true);
-                events.add(new TriggerEvent(
-                    TriggerKind.HEARTBEAT_STALL,
-                    scope,
-                    now,
-                    Map.of("stallMs", Long.toString(stallMs))
-                ));
+                Map<String, String> attrs = new LinkedHashMap<>();
+                attrs.put("stallMs", Long.toString(stallMs));
+                Long threadId = registry.lastBeatThreadId(scope);
+                if (threadId != null) {
+                    attrs.put("threadId", Long.toString(threadId));
+                }
+                events.add(new TriggerEvent(TriggerKind.HEARTBEAT_STALL, scope, now, attrs));
             } else if (!stalled && wasStalled) {
                 inStall.put(scope, false);
             }
