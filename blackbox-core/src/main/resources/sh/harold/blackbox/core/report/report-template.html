@@ -1,0 +1,2769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>__TITLE__</title>
+<style>
+  :root{
+    --bg:#121317; --bg2:#16181d; --panel:#1b1e24; --panel2:#21242c; --panelh:#262a33;
+    --border:#2a2e37; --border2:#363c47; --border3:#454c5a;
+    --tx:#d6dae2; --tx2:#9aa1ad; --tx3:#6b7280; --tx4:#525866;
+    --good:#5bd68b; --warn:#e6b34a; --bad:#f0626b; --crit:#ff5d6c; --info:#62a8ea;
+    --blue:#62a8ea; --violet:#a98be0; --teal:#46cfc0; --amber:#e6b34a; --pink:#ef7aa5;
+    --accent:#62a8ea;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+    --r:9px;
+  }
+  *{box-sizing:border-box;scrollbar-color:var(--border2) var(--bg2);scrollbar-width:thin}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--bg2)}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--border3)}
+  ::-webkit-scrollbar-corner{background:var(--bg2)}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:13.5px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:rgba(98,168,234,.28)}
+  svg{display:block}
+  .mono{font-family:var(--mono)}
+
+  .wrap{display:grid;grid-template-columns:248px minmax(0,1fr);max-width:1560px;margin:0 auto;min-height:100vh}
+  .nav{position:sticky;top:0;align-self:start;height:100vh;border-right:1px solid var(--border);padding:0;overflow-y:auto;background:linear-gradient(180deg,var(--bg2),var(--bg))}
+  .main{min-width:0;padding:0 40px 140px}
+
+  .brand{display:flex;align-items:center;gap:11px;padding:20px 20px 16px;border-bottom:1px solid var(--border)}
+  .brand .glyph{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#2b303a,#15171c);border:1px solid var(--border2);display:grid;place-items:center;color:var(--crit);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+  .brand b{font-size:13px;letter-spacing:.07em;color:var(--tx);display:block}
+  .brand small{display:block;color:var(--tx4);font-size:10px;letter-spacing:.16em;margin-top:1px}
+  .navlist{list-style:none;margin:0;padding:10px 12px}
+  .navlist a{display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:7px;color:var(--tx2);font-size:12.5px;transition:.12s;position:relative}
+  .navlist a .nic{color:var(--tx4);display:grid;place-items:center;width:16px;height:16px;flex:none}
+  .navlist a:hover{background:var(--panel);color:var(--tx)}
+  .navlist a:hover .nic{color:var(--tx2)}
+  .navlist a.on{background:var(--panel2);color:#fff;box-shadow:inset 2px 0 0 var(--accent)}
+  .navlist a.on .nic{color:var(--accent)}
+  .navlist a .nct{margin-left:auto;color:var(--tx4);font-size:10px;font-family:var(--mono)}
+  .navfoot{padding:16px 20px;color:var(--tx4);font-size:10.5px;line-height:1.8;border-top:1px solid var(--border);margin-top:6px}
+  .navfoot b{color:var(--tx3)}
+
+  header{padding:30px 0 24px;border-bottom:1px solid var(--border)}
+  .hl-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .badge{font-weight:700;font-size:11px;letter-spacing:.12em;padding:6px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:8px}
+  .badge.warn{background:rgba(230,179,74,.12);color:var(--warn);border:1px solid rgba(230,179,74,.34)}
+  .badge.bad{background:rgba(240,98,107,.12);color:var(--bad);border:1px solid rgba(240,98,107,.34)}
+  .badge.good{background:rgba(98,168,234,.12);color:var(--blue);border:1px solid rgba(98,168,234,.34)}
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+  .pill{font-size:11.5px;color:var(--tx2);background:var(--panel);border:1px solid var(--border);padding:5px 11px;border-radius:20px;display:inline-flex;gap:7px;align-items:center}
+  .pill b{color:var(--tx)}
+  .incid{color:var(--tx3);font-size:12px;margin-left:auto;font-family:var(--mono)}
+  .incid b{color:var(--tx2)}
+  h1{font-size:29px;font-weight:680;letter-spacing:-.015em;margin:6px 0 2px;color:#eef1f6;line-height:1.2;overflow-wrap:anywhere}
+  h1 .ms{color:var(--warn)}
+  .subhead{color:var(--tx2);font-size:13.5px;margin-top:6px;overflow-wrap:anywhere}
+  .subhead code{font-family:var(--mono);color:var(--tx);background:rgba(255,255,255,.05);padding:1px 6px;border-radius:5px;font-size:12px}
+
+  .envstrip{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+  .echip{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:9px 13px;position:relative}
+  .echip .eic{width:22px;height:22px;display:grid;place-items:center;color:var(--tx2);flex:none}
+  .echip .el{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx4)}
+  .echip .ev{font-size:12.5px;color:var(--tx);font-weight:600;margin-top:1px}
+
+  section{padding:30px 0;border-bottom:1px solid var(--border);scroll-margin-top:8px}
+  .sh{display:flex;align-items:center;gap:13px;margin-bottom:20px;cursor:pointer;user-select:none}
+  .sh .sic{width:26px;height:26px;border-radius:7px;background:var(--panel);border:1px solid var(--border);display:grid;place-items:center;color:var(--accent);flex:none}
+  .sh .num{font-size:10.5px;color:var(--tx4);font-family:var(--mono)}
+  .sh h2{font-size:16px;font-weight:650;margin:0;color:#eaecf1;letter-spacing:.005em}
+  .sh .sub{color:var(--tx4);font-size:11.5px;font-weight:400;margin-left:2px}
+  .sh .chev{margin-left:auto;color:var(--tx4);transition:.2s}
+  section.collapsed .chev{transform:rotate(-90deg)}
+  section.collapsed .sbody{display:none}
+
+  .lead{color:var(--tx2);font-size:13.5px;line-height:1.65;margin:-6px 0 20px;max-width:880px}
+  .lead b{color:var(--tx)}
+  .lead .hot{color:var(--warn);font-weight:600}
+
+  .diag{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px}
+  @media(max-width:1080px){.diag{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px}
+  .card.glow{box-shadow:0 0 0 1px rgba(230,179,74,.12),0 14px 40px rgba(0,0,0,.32);border-color:rgba(230,179,74,.28)}
+  .card h3{margin:0 0 12px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);display:flex;align-items:center;gap:8px}
+  .card h3 .ic{color:var(--warn)}
+  .diagtext{font-size:13.5px;color:var(--tx);line-height:1.7}
+  .diagtext b{color:#fff}
+  .diagtext code{font-family:var(--mono);font-size:12px;color:var(--teal);background:rgba(70,207,192,.08);padding:1px 6px;border-radius:5px}
+  .findings{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:9px}
+  .findings li{display:flex;gap:11px;font-size:12.5px;color:var(--tx2);line-height:1.5;align-items:flex-start}
+  .findings li .fi{flex:none;margin-top:1px}
+  .findings li b{color:var(--tx)}
+  .verdict{display:flex;flex-direction:column;gap:13px}
+  .vrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+  .vrow:last-child{border-bottom:0;padding-bottom:0}
+  .vrow .vk{color:var(--tx3);font-size:11.5px}
+  .vrow .vv{color:var(--tx);font-size:12.5px;text-align:right;font-weight:500}
+  .vv.bad{color:var(--bad)} .vv.warn{color:var(--warn)} .vv.good{color:var(--good)}
+  .tagrow{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+  .tag{font-size:10.5px;font-family:var(--mono);color:var(--tx2);background:var(--panel2);border:1px solid var(--border2);padding:3px 8px;border-radius:5px}
+  .tag.ok{color:var(--good);border-color:rgba(91,214,139,.28)} .tag.no{color:var(--tx4)}
+
+  .factstrip{display:flex;gap:10px;flex-wrap:wrap;margin:-2px 0 16px}
+  .factstrip .pill svg{color:var(--tx4)}
+  .mgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  @media(max-width:1080px){.mgrid{grid-template-columns:1fr}}
+  .mcard .cic{display:inline-grid;place-items:center;width:16px;height:16px;color:var(--tx4);margin-right:8px;flex:none}
+  .mcard .ctt{display:inline-flex;align-items:center}
+  .mstats{font-family:var(--mono);font-size:11px;color:var(--tx4);display:inline-flex;flex-wrap:wrap;align-items:baseline}
+  .mstats b{color:var(--tx2);font-weight:600}
+  .mstats .mnow b{color:var(--tx);font-size:12.5px}
+  .mstats .mnow .mu2{color:var(--tx4);font-size:11px}
+  .mstats .msep{padding:0 5px;color:var(--border3)}
+  .mstats .munit{color:var(--tx4);margin-left:4px}
+  .mstats b.v-warn{color:var(--warn)}
+  .v-good{color:var(--good)} .v-warn{color:var(--warn)} .v-bad{color:var(--bad)} .v-info{color:var(--blue)}
+
+  [data-tip]{cursor:help}
+  #tipbox{position:fixed;display:none;max-width:300px;background:#0b0c0f;border:1px solid var(--border3);border-radius:7px;padding:8px 11px;
+    font-size:11px;font-weight:400;line-height:1.5;color:var(--tx2);text-transform:none;letter-spacing:0;text-align:left;z-index:99;
+    box-shadow:0 14px 34px rgba(0,0,0,.55);white-space:normal;pointer-events:none;overflow-wrap:anywhere;font-family:var(--sans)}
+  thead th .thl{cursor:help}
+
+  .charts2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:stretch}
+  @media(max-width:1080px){.charts2{grid-template-columns:1fr}}
+  .chartcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column}
+  .chartcard .cth{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:12px;flex-wrap:wrap}
+  .chartcard .ctt{font-size:12.5px;color:var(--tx);font-weight:600}
+  .chartcard .ctm{font-size:11px;color:var(--tx4);font-family:var(--mono)}
+  .chartholder{position:relative;flex:1 1 auto}
+  .chartholder svg{width:100%;height:100%;display:block;overflow:visible;cursor:crosshair}
+  .axlab{fill:var(--tx4);font-size:9px;font-family:var(--mono)}
+  .gridline{stroke:var(--border);stroke-width:1;stroke-dasharray:2 4}
+  .ch-guide,.ch-dot{transition:opacity .08s;pointer-events:none}
+  .chtip{position:absolute;transform:translate(-50%,calc(-100% - 9px));background:#0b0c0f;border:1px solid var(--border3);border-radius:6px;padding:5px 9px;font-size:11px;font-family:var(--mono);color:var(--tx2);white-space:nowrap;pointer-events:none;z-index:6;box-shadow:0 8px 22px rgba(0,0,0,.55);text-align:left;max-width:320px}
+  .chtip b{color:#fff}
+  .chtip[hidden]{display:none}
+  .chtip .ctl{display:flex;gap:6px;align-items:center;margin-top:3px;font-size:10.5px;line-height:1.35}
+  .chtip .ctl .cdot{width:6px;height:6px;border-radius:50%;flex:none}
+  .chtip .ctl .ctxt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:290px}
+  .chtip .ctl.cinc .ctxt{color:#f0626b}
+  .chtip .ctl.cmore .ctxt{color:var(--tx4)}
+
+  .wbars{display:flex;flex-direction:column;gap:10px}
+  .wbar{display:grid;grid-template-columns:minmax(150px,32%) minmax(0,1fr) 110px;align-items:center;gap:12px;font-size:12px}
+  .wbar .wn{color:var(--tx2);display:flex;align-items:flex-start;gap:7px;min-width:0;line-height:1.35}
+  .wbar .wn svg{flex:none;margin-top:1px}
+  .wbar .wn span{overflow-wrap:anywhere}
+  .wbar.stall .wn{color:var(--warn)}
+  .wbar .wt{height:13px;background:var(--bg2);border-radius:4px;overflow:hidden;border:1px solid var(--border)}
+  .wbar .wf{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--blue),#3f7fc0)}
+  .wbar.stall .wf{background:linear-gradient(90deg,var(--warn),#b8862f)}
+  .wbar .wv{text-align:right;color:var(--tx3);font-family:var(--mono);font-size:11px}
+
+  .donutwrap{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+  .legend{display:flex;flex-direction:column;gap:9px}
+  .legend .lg{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--tx2)}
+  .legend .lg .sw{width:11px;height:11px;border-radius:3px;flex:none}
+  .legend .lg b{color:var(--tx);font-family:var(--mono);margin-left:auto;padding-left:18px}
+
+  .tbar{display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap}
+  .tbar input{background:var(--bg2);border:1px solid var(--border2);color:var(--tx);font-family:var(--mono);font-size:12px;padding:7px 11px 7px 32px;border-radius:7px;width:250px;outline:none}
+  .tbar .srch{position:relative}
+  .tbar .srch .si{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tx4)}
+  .tbar input:focus{border-color:var(--blue)}
+  .tbar .chip{font-size:11px;color:var(--tx2);background:var(--panel);border:1px solid var(--border);padding:5px 10px;border-radius:20px}
+  .tbar .count{color:var(--tx4);font-size:11px;margin-left:auto;font-family:var(--mono)}
+  .tbar .chip.tog{cursor:pointer;transition:.12s}
+  .tbar .chip.tog:hover{border-color:var(--border3);color:var(--tx)}
+  .tbar .chip.tog.on{background:var(--panel2);border-color:var(--blue);color:#cfe2f8}
+
+  .tscroll{border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+  .tcap{max-height:540px;overflow-y:auto}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead th{position:sticky;top:0;background:var(--bg2);color:var(--tx3);font-weight:600;font-size:10px;letter-spacing:.07em;text-transform:uppercase;text-align:left;padding:10px 13px;border-bottom:1px solid var(--border);white-space:nowrap;z-index:2}
+  thead th.sortable{cursor:pointer;user-select:none}
+  thead th.r{text-align:right}
+  thead th.sortable:hover{color:var(--tx)}
+  thead th .ar{opacity:0;font-size:9px;margin-left:4px;color:var(--blue)}
+  thead th.asc .ar,thead th.desc .ar{opacity:1}
+  thead th.asc .ar::after{content:"▲"} thead th.desc .ar::after{content:"▼"}
+  tbody td{padding:8px 13px;border-bottom:1px solid var(--border);white-space:nowrap;font-family:var(--mono);font-size:11.5px}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover td{background:rgba(255,255,255,.022)}
+  td.r{text-align:right}
+  .rank{color:var(--tx4);width:30px}
+  .nm{color:var(--tx);font-family:var(--sans);font-weight:500}
+  .cls{color:var(--violet)} .leaf{color:var(--tx)}
+  .pkg{color:var(--tx4)}
+  .st{font-size:10px;font-weight:600;letter-spacing:.04em;padding:2px 7px;border-radius:4px;border:1px solid}
+  .st.RUNNABLE{color:var(--good);border-color:rgba(91,214,139,.3);background:rgba(91,214,139,.07)}
+  .st.WAITING{color:var(--blue);border-color:rgba(98,168,234,.3);background:rgba(98,168,234,.07)}
+  .st.TIMED_WAITING{color:var(--violet);border-color:rgba(169,139,224,.3);background:rgba(169,139,224,.07)}
+  .st.BLOCKED{color:var(--bad);border-color:rgba(240,98,107,.3);background:rgba(240,98,107,.07)}
+  .st.NEUTRAL{color:var(--tx3);border-color:var(--border2)}
+  .pcount{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--tx3);background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:0 7px;line-height:18px;vertical-align:middle}
+  .pcount .plk{display:inline-flex;color:var(--tx4)}
+  .pcount .plk svg{width:12px;height:12px}
+  .pcount b{color:var(--tx2);font-weight:600}
+  .pcount[data-tip]{cursor:help}
+  .pcount.z{opacity:.5}
+  .pct{color:var(--tx3)}
+  tr.hl td{background:rgba(230,179,74,.06)!important}
+  .nm.stallname{color:var(--warn);cursor:help}
+  .vtag{font-family:var(--mono);color:var(--tx2)}
+  .corebadge{font-size:10px;color:var(--tx4);font-family:var(--sans)}
+
+  .mname{display:flex;align-items:center;gap:7px;cursor:pointer}
+  .mname .exp{color:var(--tx4);font-size:9px;transition:.15s;flex:none;width:9px}
+  .mname:hover .exp{color:var(--blue)}
+  tr.open .mname .exp{transform:rotate(90deg);color:var(--blue)}
+  .mpath{margin:8px 0 2px 16px;border-left:1px solid var(--border2);padding:2px 0 2px 0}
+  .mpath[hidden]{display:none}
+  .mpath .plab{display:block;font-family:var(--sans);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx4);margin:0 0 5px 12px}
+  .mpath .pf{font-size:11px;color:var(--tx2);padding:2px 0 2px 12px;position:relative;white-space:nowrap}
+  .mpath .pf .arr{color:var(--tx4);margin-right:6px}
+  .mpath .pf .cls{color:var(--violet)}
+
+  .syscols{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  @media(max-width:1080px){.syscols{grid-template-columns:1fr}}
+  .kvcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+  .kvcard .kvh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border);background:var(--bg2)}
+  .kvcard .kvh .ic{color:var(--accent)} .kvcard .kvh b{font-size:12.5px;color:var(--tx)}
+  .kvcard .kvh small{color:var(--tx4);font-size:11px;margin-left:auto;font-family:var(--mono)}
+  .kv .row{display:flex;justify-content:space-between;gap:16px;padding:9px 16px;font-size:12px;border-bottom:1px solid var(--border)}
+  .kv .row:last-child{border-bottom:0}
+  .kv .row .k{color:var(--tx3);flex:none}
+  .kv .row .v{color:var(--tx);text-align:right;font-family:var(--mono);font-size:11.5px;overflow-wrap:anywhere}
+
+  .codewrap{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
+  .codehd{display:flex;align-items:center;gap:11px;padding:12px 15px;background:var(--bg2);cursor:pointer;user-select:none}
+  .codehd .ic{color:var(--accent)}
+  .codehd .fn{color:var(--tx);font-size:12.5px;font-weight:600;overflow-wrap:anywhere}
+  .codehd .chev2{margin-left:auto;color:var(--tx4);transition:.2s}
+  .codewrap.closed .chev2{transform:rotate(-90deg)}
+  .codewrap.closed pre{display:none}
+  pre{margin:0;padding:15px 17px;font-size:11.8px;line-height:1.7;color:var(--tx2);overflow-x:auto;background:#0e0f13;max-height:460px;overflow-y:auto;font-family:var(--mono)}
+  .jk{color:var(--blue)} .js{color:var(--good)} .jn{color:var(--amber)} .jb{color:var(--violet)} .jp{color:var(--tx4)}
+
+  .lvl{font-size:10px;font-weight:600;letter-spacing:.04em;padding:1px 7px;border-radius:4px;border:1px solid;flex:none}
+  .lvl.WARN{color:var(--warn);border-color:rgba(230,179,74,.3);background:rgba(230,179,74,.07)}
+  .lvl.ERROR{color:var(--bad);border-color:rgba(240,98,107,.3);background:rgba(240,98,107,.07)}
+  .lvl.INFO{color:var(--blue);border-color:rgba(98,168,234,.3);background:rgba(98,168,234,.07)}
+  .lvl.OTHER{color:var(--tx3);border-color:var(--border2);background:var(--bg2)}
+  .logscroll{max-height:560px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);background:#0e0f13;padding:6px 0}
+  .lline{display:flex;gap:10px;align-items:flex-start;padding:3px 14px;font-family:var(--mono);font-size:11.5px;line-height:1.6}
+  .lline:hover{background:rgba(255,255,255,.025)}
+  .lline.lERROR{box-shadow:inset 2px 0 0 var(--bad)}
+  .lline.lWARN{box-shadow:inset 2px 0 0 var(--warn)}
+  .lline .lsrc{color:var(--teal);flex:none;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lline .lmsg{color:var(--tx2);min-width:0;flex:1;overflow-wrap:anywhere;white-space:pre-wrap}
+  .logdet summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline}
+  .logdet summary::-webkit-details-marker{display:none}
+  .logdet summary::before{content:"\25B8";color:var(--tx4);font-size:10px;transition:.15s}
+  .logdet[open] summary::before{transform:rotate(90deg)}
+  .logdet .logfirst{flex:1;min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
+  .logmore{color:var(--blue);font-size:10.5px;white-space:nowrap}
+  .logpre{white-space:pre;overflow-x:auto;background:#0b0c10;border:1px solid var(--border);border-radius:6px;padding:9px 11px;margin:7px 0 2px;font-family:var(--mono);font-size:11px;line-height:1.55;color:var(--tx2);max-height:300px;overflow-y:auto}
+  .repeat{font-size:10px;font-weight:600;color:var(--amber);border:1px solid rgba(214,164,74,.4);border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap;cursor:help;flex:none}
+
+  .mxchip{display:inline-block;font-size:10px;font-family:var(--mono);color:var(--tx2);background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:0 6px;line-height:17px;margin:2px 3px 2px 0}
+  .mxchip.warnchip{color:var(--warn);border-color:rgba(230,179,74,.4)}
+  .ovltag{font-size:9px;font-family:var(--sans);color:var(--warn);border:1px solid rgba(230,179,74,.4);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:1px}
+  .mxconf{background:rgba(230,179,74,.07);border:1px solid rgba(230,179,74,.3);border-radius:8px;margin:10px;padding:10px 12px;font-size:12px;color:var(--tx2)}
+  .mxconf .mxchd{display:flex;gap:8px;align-items:center;color:var(--warn);font-weight:600}
+  .mxconf .mxchd svg{flex:none}
+  .mxconf .mxcsub{margin:3px 0 0 24px;font-size:11.5px;color:var(--tx3)}
+  .mxcrow{display:flex;flex-direction:column;gap:3px;margin:11px 0 0 24px}
+  .mxcrow .mxchead{font-size:12.5px;font-weight:600;color:var(--tx)}
+  .mxcrow .mxchead .vs{color:var(--warn);padding:0 3px}
+  .mxcrow .mxchead .dash{color:var(--tx4);font-weight:400}
+  .mxcrow code{font-family:var(--mono);font-size:11px;color:var(--tx2);overflow-wrap:anywhere}
+  .mxcrow .mxchips{margin-top:1px}
+  .mxok{margin:10px 12px;font-size:11.5px;color:var(--good);display:flex;gap:7px;align-items:center}
+  .subnote{font-size:11.5px;color:var(--tx3);margin:2px 0 12px;line-height:1.5}
+  .wf.al{background:linear-gradient(90deg,var(--teal),#2d9a8f)}
+  .cf{display:inline-flex;align-items:center;gap:6px;color:var(--accent);border:1px solid var(--border2);padding:3px 8px;border-radius:5px;font-family:var(--sans);font-size:11px;transition:.12s}
+  .cf:hover{background:var(--panel2);border-color:var(--border3);color:#8cc2f5}
+
+  .alert{background:rgba(240,98,107,.08);border:1px solid rgba(240,98,107,.32);border-radius:8px;padding:9px 12px;margin:10px 0 0;font-size:12px}
+  .alert ul{margin:6px 0 0;padding-left:18px}
+  .alert li{margin:3px 0;font-family:var(--mono);font-size:11.5px;color:var(--bad)}
+
+  .copybtn{display:inline-flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--border2);color:var(--tx2);font-family:var(--sans);font-size:11.5px;padding:6px 11px;border-radius:7px;cursor:pointer;transition:.12s}
+  .copybtn:hover{border-color:var(--border3);color:var(--tx)}
+  .copybtn.ok{color:var(--good);border-color:rgba(91,214,139,.4)}
+
+  .zoomband{position:absolute;top:0;bottom:0;background:rgba(98,168,234,.13);border-left:1px solid rgba(98,168,234,.55);border-right:1px solid rgba(98,168,234,.55);pointer-events:none;z-index:3}
+  #presetrow{display:none;position:sticky;top:0;z-index:70;background:rgba(18,19,23,.94);backdrop-filter:blur(5px);border-bottom:1px solid var(--border);padding:9px 0;align-items:center;gap:8px;flex-wrap:wrap}
+  #presetrow .plab2{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx4);margin-right:3px}
+  .pchip{font-size:11px;color:var(--tx2);background:var(--panel);border:1px solid var(--border);padding:4px 12px;border-radius:20px;cursor:pointer;transition:.12s;font-family:var(--mono)}
+  .pchip:hover{border-color:var(--border3);color:var(--tx)}
+  .pchip.on{background:var(--panel2);border-color:var(--blue);color:#cfe2f8}
+  body.has-presets section{scroll-margin-top:52px}
+  #zoomchip{position:fixed;right:18px;bottom:18px;z-index:80;display:none;align-items:center;gap:7px;background:#0b0c0f;border:1px solid var(--border3);color:var(--tx);font-family:var(--mono);font-size:11.5px;padding:8px 13px;border-radius:20px;cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.5)}
+  #zoomchip:hover{border-color:var(--blue);color:#cfe2f8}
+  .evlink{color:var(--blue);font-size:11px;white-space:nowrap;margin-left:7px;opacity:.85}
+  .evlink:hover{text-decoration:underline;opacity:1}
+  ol.nextsteps{margin:8px 0 0;padding-left:19px}
+  ol.nextsteps li{margin:7px 0;font-size:12.5px;color:var(--tx2);line-height:1.5}
+  ol.nextsteps a{color:var(--blue)}
+  ol.nextsteps code{font-family:var(--mono);font-size:11px;color:var(--teal)}
+  .cmdpre{white-space:pre-wrap;overflow-wrap:anywhere}
+  .wbar .wn span.tnc{display:block;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cwarn{display:flex;gap:9px;align-items:flex-start;background:rgba(230,179,74,.08);border:1px solid rgba(230,179,74,.32);border-radius:8px;padding:10px 13px;margin-top:14px;font-size:12.5px;color:var(--tx2);line-height:1.5}
+  .cwarn svg{flex:none;color:var(--warn);margin-top:1px}
+  .cwarn b{color:var(--warn)}
+  .cmpwrap{margin-top:16px}
+  .cmpwrap td.r{font-variant-numeric:tabular-nums}
+  .cmpwrap .v-good{color:var(--good)} .cmpwrap .v-bad{color:var(--bad)}
+  .chlegend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:-6px 0 16px;font-size:11px;color:var(--tx3);font-family:var(--sans)}
+  .chlegend .ls{display:inline-flex;align-items:center;gap:7px}
+  .chlegend .smp{width:20px;height:0;display:inline-block;border-top:2px solid var(--blue)}
+  .chlegend .smp.dsh{border-top:1px dashed var(--bad)}
+  .chlegend .smp.evs{border-top:1px dashed var(--tx3)}
+  .chlegend .edot{width:5px;height:5px;border-radius:50%;display:inline-block;margin-left:2px}
+  .chlegend .evtog{width:9px;height:9px;cursor:pointer;border:1px solid transparent}
+  .chlegend .evtog:hover{border-color:var(--tx2)}
+  .chlegend .evtog.off{opacity:.22}
+  .chlegend .evmaster{cursor:pointer}
+  .chlegend .evmaster:hover{color:var(--tx)}
+  .chlegend .evmaster.off{opacity:.4;text-decoration:line-through}
+  .chlegend .evmore{margin-left:6px;color:var(--tx4);font-style:italic;cursor:help}
+  .pmlegend .pmlg{cursor:pointer}
+  .pmlegend .pmlg.off{opacity:.32;text-decoration:line-through}
+  .bbar{display:inline-block;width:54px;height:7px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden;vertical-align:1px;margin-right:7px}
+  .bbar i{display:block;height:100%}
+  .modmeth{font-family:var(--mono);font-size:10px;color:var(--tx4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+  .modthr{font-family:var(--mono);font-size:10px;color:var(--tx4);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #totop{position:fixed;right:18px;bottom:62px;z-index:80;width:38px;height:38px;border-radius:50%;display:none;align-items:center;justify-content:center;background:#0b0c0f;border:1px solid var(--border3);color:var(--tx2);cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.5);transition:.12s;padding:0}
+  #totop:hover{border-color:var(--blue);color:#cfe2f8}
+  .tnc2{display:inline-block;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+  .pmlegend{display:flex;gap:12px;flex-wrap:wrap;margin:-2px 0 8px;font-size:11px;color:var(--tx2);font-family:var(--sans)}
+  .pmlegend .pmlg{display:inline-flex;align-items:center;gap:5px;cursor:help}
+  .pmlegend .edot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+  .chlegend .evcount{color:var(--tx4);margin-left:4px}
+  .ovltag.badtag{color:var(--bad);border-color:rgba(240,98,107,.45)}
+  .mstats .pml b{font-weight:600}
+  .flamebar{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  .flamebar .srch{position:relative}
+  .flamebar .srch .si{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tx4)}
+  .flamebar input{background:var(--bg2);border:1px solid var(--border2);color:var(--tx);font-family:var(--mono);font-size:12px;padding:7px 11px 7px 32px;border-radius:7px;width:300px;outline:none}
+  .flamebar input:focus{border-color:var(--blue)}
+  .flamelg{display:inline-flex;gap:11px;align-items:center}
+  .flamelg .flg{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--tx3)}
+  .flamelg .fsw{width:10px;height:10px;border-radius:2px;display:inline-block}
+  .thlink{cursor:pointer;border-bottom:1px dotted var(--tx4)}
+  .thlink:hover{color:var(--blue);border-bottom-color:var(--blue)}
+  tr.thsel td{background:rgba(98,168,234,.12)}
+  tr.thsel td:first-child{box-shadow:inset 2px 0 0 var(--blue)}
+  .flamelg .flgtog{cursor:pointer}
+  .flamelg .flgtog.off{opacity:.4;text-decoration:line-through}
+  .ttlabel[data-flamegroup]{cursor:pointer}
+  .ttlabel[data-flamegroup]:hover{color:var(--blue)}
+  .ttlabel.thsel{color:var(--blue)}
+  .tbar.wsel{margin:14px 0 0}
+  .tbar .wsl{color:var(--tx4);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;margin-right:2px}
+  .mpath .pf .thmn{color:var(--tx4);margin-left:10px}
+  .fcrumb{font-size:11px;font-family:var(--mono);color:var(--tx2);background:var(--panel);border:1px solid var(--border);padding:4px 12px;border-radius:20px;cursor:pointer;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fcrumb:hover{border-color:var(--blue);color:#cfe2f8}
+  .fnote{font-size:11px;color:var(--tx4);font-family:var(--mono);margin-left:auto}
+  #flamecv{display:block;width:100%;border:1px solid var(--border);border-radius:var(--r);background:#0e0f13}
+  .ttlegend{display:flex;gap:14px;align-items:center;font-size:11px;color:var(--tx3);margin:0 0 8px;font-family:var(--sans);flex-wrap:wrap}
+  .ttlegend .edot{width:7px;height:7px;border-radius:2px;display:inline-block;margin-right:5px;vertical-align:0}
+  .ttwrap{display:flex;border:1px solid var(--border);border-radius:var(--r);background:#0e0f13;overflow-y:auto;max-height:366px;margin-bottom:18px}
+  .ttlabels{flex:none;width:190px;border-right:1px solid var(--border);padding:5px 0}
+  .ttlabel{height:14px;line-height:14px;font-family:var(--mono);font-size:10px;color:var(--tx3);padding:0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ttcv{flex:1;min-width:0;padding:5px 8px}
+  #ttcanvas{display:block;width:100%}
+  .gchint{color:var(--warn);font-size:10px;font-family:var(--mono);white-space:nowrap;flex:none}
+  .gctog,.inctog{cursor:pointer;user-select:none}
+  .gctog:hover,.inctog:hover{filter:brightness(1.2)}
+  .gctog.off,.inctog.off{opacity:.3;text-decoration:line-through}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav">
+    <div class="brand">
+      <div class="glyph" id="brandGlyph"></div>
+      <div><b>BLACKBOX</b><small>INCIDENT REPORT</small></div>
+    </div>
+    <ul class="navlist" id="navlist"></ul>
+    <div class="navfoot" id="navfoot"></div>
+  </nav>
+
+  <main class="main">
+    <header>
+<!--__HEADER__-->
+      <div class="envstrip" id="envstrip"></div>
+    </header>
+
+    <div id="presetrow"></div>
+    <div id="sections"></div>
+  </main>
+</div>
+<button id="zoomchip" type="button" title="Show the full capture window again">⟲ <span></span></button>
+<button id="totop" type="button" aria-label="Back to top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
+
+<script>
+const D = /*__DATA__*/null;
+
+const $ = (s,r=document)=>r.querySelector(s);
+const fmt = n => Number(n).toLocaleString("en-US");
+const pct = (n,d)=>(100*n/d);
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const has = v => v!=null;
+const GIB = 1024*1024*1024, GB = 1e9;
+const gib = b => b/GIB, gb = b => b/GB;
+function fmtBytes(b){
+  if(!has(b)||b<0) return "n/a";
+  if(b<1024) return b+" B";
+  const u=["KiB","MiB","GiB","TiB"]; let v=b,i=-1;
+  do{v/=1024;i++;}while(v>=1024&&i<u.length-1);
+  return v.toFixed(1)+" "+u[i];
+}
+function fmtDur(ms){
+  if(!has(ms)||ms<0) return "n/a";
+  const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;
+  return h>0?h+"h "+m+"m":(m>0?m+"m "+x+"s":x+"s");
+}
+function autoDec(min,max,base){
+  const r=Math.abs(max-min);
+  if(!isFinite(r)||r<=0) return base;
+  return Math.max(base,Math.min(6,Math.ceil(-Math.log10(r))));
+}
+function splitMethod(m){
+  const i=m.lastIndexOf(".");
+  if(i<0) return esc(m);
+  const cls=m.slice(0,i), leaf=m.slice(i+1);
+  const j=cls.lastIndexOf(".");
+  return `<span class="pkg">${esc(cls.slice(0,j+1))}</span><span class="cls">${esc(cls.slice(j+1))}</span>.<span class="leaf">${esc(leaf)}</span>`;
+}
+function shortMethod(s){const i=s.lastIndexOf(".");return i<0?esc(s):`<span class="cls">${esc(s.slice(0,i))}</span>.${esc(s.slice(i+1))}`;}
+function leafName(m){const p=String(m).split(".");return p.length>=2?p.slice(-2).join("."):m;}
+function pathHtml(callers){
+  if(!callers||!callers.length) return "";
+  const items=callers.map((c,i)=>`<div class="pf" style="padding-left:${12+i*12}px"><span class="arr">↑</span>${shortMethod(c)}</div>`).join("");
+  return `<div class="mpath" hidden><span class="plab">called by</span>${items}</div>`;
+}
+function thc(label,tip,o){o=o||{};const cls=[(o.r?"r":""),(o.sort?"sortable":""),(o.def||"")].filter(Boolean).join(" ");
+  const ds=o.sort?` data-sort="${o.sort}"`:"";const ar=o.sort?' <span class="ar"></span>':"";
+  return `<th class="${cls}"${ds}><span class="thl"${tip?` data-tip="${esc(tip)}"`:""}>${label}</span>${ar}</th>`;}
+function worldLabel(n){ return String(n).replace(/^instance-/,"").replace(/_/g," "); }
+function shortWorld(n){ return worldLabel(n).replace(/-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i,""); }
+function osFamily(name){const n=String(name).toLowerCase();return /windows/.test(n)?"Windows":(/mac|darwin|os x/.test(n)?"macOS":(/bsd/.test(n)?"BSD":"Linux"));}
+function osIcon(name){const f=osFamily(name);return f==="Windows"?I.win:(f==="macOS"?I.apple:I.linux);}
+function jvmDistro(v){const s=String(v||"").toLowerCase();return /adoptium|temurin/.test(s)?"Temurin":/corretto|amazon/.test(s)?"Corretto":/graalvm/.test(s)?"GraalVM":/azul|zulu/.test(s)?"Zulu":/oracle/.test(s)?"Oracle":/microsoft/.test(s)?"Microsoft":/bellsoft|liberica/.test(s)?"Liberica":(String(v||"").split(" ")[0]||"JDK");}
+function humanTrigger(t){return String(t).replace(/_/g," ").toLowerCase().replace(/^./,c=>c.toUpperCase());}
+function gcDisplayName(young,old){
+  const s=((young||"")+" "+(old||"")).toLowerCase();
+  if(s.includes("shenandoah")) return "Shenandoah";
+  if(s.includes("g1")) return "G1";
+  if(s.includes("z ")||s.includes("zgc")||/^z/.test(s.trim())) return "ZGC";
+  if(s.includes("parallel")) return "Parallel";
+  if(s.includes("serial")) return "Serial";
+  return young&&old?young+" + "+old:(young||old||null);
+}
+function colorJson(s){
+  return esc(s)
+    .replace(/(&quot;(?:[^&]|&(?!quot;))*?&quot;)(\s*:)/g,'<span class="jk">$1</span>$2')
+    .replace(/:\s*(&quot;(?:[^&]|&(?!quot;))*?&quot;)/g,': <span class="js">$1</span>')
+    .replace(/:\s*(-?\d+\.?\d*)/g,': <span class="jn">$1</span>')
+    .replace(/\b(true|false|null)\b/g,'<span class="jb">$1</span>')
+    .replace(/([{}\[\],])/g,'<span class="jp">$1</span>');
+}
+
+let CHART_ID=0; const CHARTS={};
+let flameRender=null, ttRender=null;
+let ZOOM=null;
+const ECOL={error:"#f0626b",warn:"#e6b34a",gc:"#a98be0",plugin:"#46cfc0",conn:"#62a8ea"};
+const EVTYPES={error:true,warn:true,gc:true,plugin:true,conn:true};
+const EVOFF=new Set();
+let GCHL=true;
+let INCHL=D.incident.trigger!=="MANUAL";
+const evTypeKey=()=>["error","warn","gc","plugin","conn"].map(t=>EVTYPES[t]?1:0).join("");
+const zoomKey=()=>ZOOM?ZOOM.a.toFixed(4)+":"+ZOOM.b.toFixed(4):"f";
+const clamp01=v=>Math.max(0,Math.min(1,v));
+function globalClock(f){
+  if(!DV.span) return null;
+  const t0=clockToSec(DV.span.from), t1=clockToSec(DV.span.to);
+  const sp=((t1-t0)+86400)%86400||(t1-t0);
+  return secToClock(t0+clamp01(f)*sp);
+}
+function sstat(a){let mn=a[0],mx=a[0],s=0;for(const v of a){if(v<mn)mn=v;if(v>mx)mx=v;s+=v;}return{min:mn,avg:s/a.length,max:mx};}
+function markerInZoom(){const f=has(D.incident.markerFrac)?D.incident.markerFrac:1;return !ZOOM||(f>=ZOOM.a-1e-9&&f<=ZOOM.b+1e-9);}
+function lineChart(series,{h=160,color="#62a8ea",unit="%",max=null,times=null,decimals=1,marker=null,multi=null,gcIdx=false}={}){
+  const id="ch"+(++CHART_ID);
+  CHARTS[id]={series:multi?multi[0].series:series,lineDefs:multi,o:{h,color,unit,max,times,decimals,marker,gcIdx}};
+  return `<div class="chartholder" data-chart="${id}" style="min-height:${h}px"></div>`;
+}
+function axFmt(v,step){
+  if(step>=2) return String(Math.round(v));
+  if(step>=0.095) return v.toFixed(1);
+  return v.toFixed(Math.min(6,Math.max(2,Math.ceil(-Math.log10(step)))));
+}
+function hmsToSec(s){const p=String(s).split(":").map(Number);return (p[0]||0)*3600+(p[1]||0)*60+(p[2]||0);}
+function secToHms(t){t=((t%86400)+86400)%86400;const z=n=>String(Math.floor(n)).padStart(2,"0");return z(t/3600)+":"+z(t%3600/60)+":"+z(t%60);}
+function renderChart(el){
+  const cfg=CHARTS[el.dataset.chart]; if(!cfg) return;
+  const w=el.clientWidth;
+  if(!w){cfg.w=0;return;}
+  const o=cfg.o, h=Math.max(el.clientHeight||0,o.h);
+  const secEl=el.closest("section"), secId=secEl?secEl.id:"";
+  const evsOn=!EVOFF.has(secId);
+  const offSet=cfg.lineOff||(cfg.lineOff=new Set());
+  const zk=zoomKey()+"|"+evTypeKey()+"|"+(evsOn?1:0)+"|"+(GCHL?1:0)+"|"+(INCHL?1:0)+"|"+[...offSet].join(".");
+  if(cfg.w===w&&cfg.hh===h&&cfg.zk===zk) return;
+  const defs=cfg.lineDefs||[{name:null,series:cfg.series,color:o.color,dec:o.decimals}];
+  const N=Math.min(...defs.map(d=>d.series.length));
+  const za=ZOOM?ZOOM.a:0, zb=ZOOM?ZOOM.b:1;
+  let i0=Math.max(0,Math.floor(za*(N-1))), i1=Math.min(N-1,Math.ceil(zb*(N-1)));
+  if(i1-i0<1){ if(i0>0)i0--; else i1=Math.min(N-1,i1+1); }
+  const slices=defs.map(d=>d.series.slice(i0,i1+1)), n=slices[0].length;
+  const lineOn=k=>defs.length===1||!offSet.has(k);
+  let dmin=Infinity, dmax=-Infinity;
+  slices.forEach((s,k)=>{if(!lineOn(k))return;for(const v of s){if(v<dmin)dmin=v;if(v>dmax)dmax=v;}});
+  if(dmin===Infinity){dmin=0;dmax=1;}
+  cfg.tipDec=autoDec(dmin,dmax,o.decimals);
+  let ymin=0;
+  if(dmin>0&&dmax>0&&dmin>0.12*dmax) ymin=Math.max(0,dmin-((dmax-dmin)||dmax*0.1)*0.15);
+  let ymax=(o.max!=null&&!ZOOM)?Math.max(o.max,dmax):dmax+(((dmax-ymin)||Math.abs(dmax)||1)*0.08);
+  if(ymax<=ymin) ymax=ymin+1;
+  const padL=40, padR=12, padT=16, padB=(h>=120?22:10);
+  const X=i=>n>1?padL+i*(w-padL-padR)/(n-1):w/2;
+  const Y=v=>padT+(h-padT-padB)*(1-(v-ymin)/(ymax-ymin));
+  const x0=X(0), x1=X(n-1);
+  const fx=f=>x0+clamp01((f-za)/((zb-za)||1))*(x1-x0);
+  let paths=""; const ptsL=[];
+  slices.forEach((s,k)=>{
+    let line=""; const pts=[];
+    s.forEach((v,i)=>{ const x=+X(i).toFixed(1), y=+Y(v).toFixed(1); line+=(i?"L":"M")+` ${x} ${y} `; pts.push({x,y,v}); });
+    if(lineOn(k)) paths+=`<path d="${line}" fill="none" stroke="${defs[k].color}" stroke-width="1.8" stroke-linejoin="round"/>`;
+    ptsL.push(pts);
+  });
+  let grid="";
+  {
+    const step=(ymax-ymin)/4;
+    for(let g=0;g<=4;g++){ const yv=ymin+step*g, y=Math.round(Y(yv))+0.5;
+      grid+=`<line class="gridline" x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}"/><text class="axlab" x="${padL-6}" y="${y+3}" text-anchor="end">${axFmt(yv,step)}</text>`; }
+  }
+  if(padB>=22&&has(D.incident.windowSec)&&D.incident.recStart){
+    const startSec=hmsToSec(D.incident.recStart);
+    const fa=N>1?i0/(N-1):0, fb=N>1?i1/(N-1):1, TICKS=5;
+    for(let g=0;g<TICKS;g++){
+      const p=g/(TICKS-1), xx=x0+p*(x1-x0), f=fa+p*(fb-fa);
+      grid+=`<text class="axlab" x="${xx.toFixed(1)}" y="${h-4}" text-anchor="${g===0?"start":g===TICKS-1?"end":"middle"}">${secToHms(startSec+f*D.incident.windowSec)}</text>`;
+    }
+  }
+  let mk="", tint="";
+  cfg.mark=null;
+  if(o.marker){
+    const gf=o.marker.frac!=null?clamp01(o.marker.frac):1;
+    const vis=gf>=za-1e-9&&gf<=zb+1e-9;
+    let xr=null;
+    const mcol=o.marker.kind==='profile'?'#46cfc0':'#f0626b';
+    if(INCHL&&o.marker.frac!=null&&o.marker.kind!=='profile'){
+      const t0=Math.max(gf,za), t1=Math.min(1,zb);
+      if(t1>t0+1e-6){
+        const xa=fx(t0), xb=fx(t1);
+        tint=`<rect class="inctint" x="${xa.toFixed(1)}" y="${padT}" width="${(xb-xa).toFixed(1)}" height="${(h-padT-padB).toFixed(1)}" fill="#f0626b" fill-opacity="0.05" pointer-events="none"/>`;
+      }
+    }
+    if(vis){
+      xr=Math.round(fx(gf))+0.5;
+      if(INCHL) mk+=`<g pointer-events="none"><line x1="${xr}" y1="${padT-4}" x2="${xr}" y2="${h-padB}" stroke="${mcol}" stroke-width="1.2" stroke-dasharray="2 2"/></g>`;
+    }
+    cfg.mark={frac:gf,x:xr,label:o.marker.label||"incident",recoverySec:o.marker.recoverySec,kind:o.marker.kind};
+  }
+  let lane="";
+  cfg.evByIdx=null;
+  const evList=(D.events&&D.events.length&&evsOn)?D.events.filter(e=>EVTYPES[e[1]]!==false):null;
+  if(evList&&evList.length){
+    const lineRank={error:5,plugin:4,gc:3,conn:2,warn:1};
+    const step=n>1?(x1-x0)/(n-1):1;
+    const byIdx=new Map(), lbuckets=new Map();
+    evList.forEach(evn=>{
+      const f=evn[0]; if(f<za||f>zb) return;
+      const x=fx(f);
+      let idx=Math.round((x-x0)/step); idx=Math.max(0,Math.min(n-1,idx));
+      let b=byIdx.get(idx);
+      if(!b){b=[];byIdx.set(idx,b);}
+      b.push(evn);
+      const lk=evn[1]+":"+Math.round(x/24);
+      let lb=lbuckets.get(lk);
+      if(!lb){lb={sx:0,n:0,top:evn[1]};lbuckets.set(lk,lb);}
+      lb.sx+=x;lb.n++;
+    });
+    cfg.evByIdx=byIdx;
+    const lines=[...lbuckets.values()]
+      .sort((a,b)=>(((lineRank[b.top]||0)-(lineRank[a.top]||0))||(b.n-a.n)))
+      .slice(0,12);
+    if(lines.length){
+      lane=`<g class="evlines" pointer-events="none" opacity=".45">`
+        +lines.map(b=>{const x=Math.round(b.sx/b.n)+0.5;
+          return `<line class="evline" x1="${x}" y1="${padT}" x2="${x}" y2="${h-padB}" stroke="${ECOL[b.top]||"#9aa1ad"}" stroke-width="1" stroke-dasharray="4 4"/>`;}).join("")
+        +`</g>`;
+    }
+  }
+  let gcOver="";
+  cfg.gcSet=null;
+  if(o.gcIdx&&GCHL&&Array.isArray(D.gcOverlap)&&D.gcOverlap.length){
+    const gset=new Set();
+    D.gcOverlap.forEach(gi=>{const li=gi-i0;if(li>=0&&li<n)gset.add(li);});
+    if(gset.size){
+      cfg.gcSet=gset;
+      let segs="";
+      ptsL.forEach((pts,k)=>{
+        if(!lineOn(k))return;
+        gset.forEach(li=>{
+          const a=pts[Math.max(0,li-1)],b=pts[li],c=pts[Math.min(n-1,li+1)];
+          segs+=`M ${a.x} ${a.y} L ${b.x} ${b.y} L ${c.x} ${c.y} `;
+        });
+      });
+      gcOver=`<path class="gcseg" d="${segs}" fill="none" stroke="#e6b34a" stroke-width="2.2" stroke-linejoin="round" pointer-events="none"/>`;
+    }
+  }
+  const dots=defs.map((d,k)=>`<circle class="ch-dot" data-ln="${k}" r="3.4" fill="${d.color}" stroke="#0e0f13" stroke-width="1.4" opacity="0"${lineOn(k)?"":" display=\"none\""}/>`).join("");
+  el.innerHTML=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="time series">${grid}${tint}${lane}${mk}${paths}${gcOver}<line class="ch-guide" x1="0" y1="${padT}" x2="0" y2="${h-padB}" stroke="${o.color}" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>${dots}</svg><div class="chtip" hidden></div>`;
+  cfg.pts=ptsL[0]; cfg.ptsL=ptsL; cfg.defs=defs; cfg.w=w; cfg.hh=h; cfg.zk=zk; cfg.padL=padL; cfg.padR=padR; cfg.i0=i0; cfg.N=N;
+  cfg.za=za; cfg.zb=zb; cfg.tipKey=null;
+  attachChartHover(el);
+}
+function renderCharts(){ document.querySelectorAll("[data-chart]").forEach(renderChart); if(flameRender)flameRender(); if(ttRender)ttRender(); updateEvCounts(); syncLegends(); }
+function updateEvCounts(){
+  document.querySelectorAll(".chlegend").forEach(lg=>{
+    const span=lg.querySelector(".evcount"); if(!span) return;
+    const secEl=lg.closest("section"), secId=secEl?secEl.id:"";
+    if(EVOFF.has(secId)){ span.textContent="events hidden"; return; }
+    if(!D.events||!D.events.length){ span.textContent=""; return; }
+    const za=ZOOM?ZOOM.a:0, zb=ZOOM?ZOOM.b:1;
+    const M=D.events.reduce((a,e)=>a+((e[0]>=za&&e[0]<=zb&&EVTYPES[e[1]]!==false)?1:0),0);
+    let N=0;
+    (secEl||document).querySelectorAll(".chartholder .evlines").forEach(g=>{const c=g.querySelectorAll("line").length;if(c>N)N=c;});
+    span.textContent=(N>0&&M>N)?`${M} events · ${N} lines`:"";
+  });
+}
+function syncLegends(){
+  document.querySelectorAll(".chlegend").forEach(lg=>{
+    const secEl=lg.closest("section"), secId=secEl?secEl.id:"";
+    lg.querySelectorAll(".evtog").forEach(d=>d.classList.toggle("off",EVTYPES[d.dataset.evtype]===false));
+    const ms=lg.querySelector(".evmaster"); if(ms) ms.classList.toggle("off",EVOFF.has(secId));
+  });
+  document.querySelectorAll("[data-gctog]").forEach(x=>x.classList.toggle("off",!GCHL));
+  document.querySelectorAll("[data-inctog]").forEach(x=>x.classList.toggle("off",!INCHL));
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest?e.target.closest(".evtog,[data-evmaster],[data-pml],[data-gctog],[data-inctog]"):null;
+  if(!t) return;
+  if(t.hasAttribute("data-gctog")){
+    GCHL=!GCHL;
+    renderCharts();
+    return;
+  }
+  if(t.hasAttribute("data-inctog")){
+    INCHL=!INCHL;
+    renderCharts();
+    return;
+  }
+  if(t.classList.contains("evtog")){
+    EVTYPES[t.dataset.evtype]=EVTYPES[t.dataset.evtype]===false;
+    renderCharts();
+    return;
+  }
+  if(t.hasAttribute("data-evmaster")){
+    const secEl=t.closest("section"), secId=secEl?secEl.id:"";
+    if(EVOFF.has(secId)) EVOFF.delete(secId); else EVOFF.add(secId);
+    renderCharts();
+    return;
+  }
+  const pml=t.getAttribute("data-pml");
+  if(pml){
+    const [cid,kRaw]=pml.split(":"), k=+kRaw, cfg=CHARTS[cid];
+    if(!cfg||!cfg.lineDefs) return;
+    cfg.lineOff=cfg.lineOff||new Set();
+    if(cfg.lineOff.has(k)) cfg.lineOff.delete(k);
+    else if(cfg.lineDefs.length-cfg.lineOff.size>1) cfg.lineOff.add(k);
+    t.classList.toggle("off",cfg.lineOff.has(k));
+    renderCharts();
+    updateStats();
+  }
+});
+function applyHover(el){
+  const cfg=CHARTS[el.dataset.chart]; if(!cfg||!cfg.pts||!cfg.w||el._mx==null) return;
+  const r=el.getBoundingClientRect();
+  const plotW=cfg.w-cfg.padL-cfg.padR;
+  const n=cfg.pts.length, step=n>1?plotW/(n-1):1;
+  const vx=(el._mx-r.left)/r.width*cfg.w;
+  let i=Math.round((vx-cfg.padL)/step); i=Math.max(0,Math.min(n-1,i));
+  if(cfg.tipKey===i) return;
+  cfg.lastSwap=performance.now();
+  const frac=cfg.N>1?(cfg.i0+i)/(cfg.N-1):0;
+  document.querySelectorAll(".chartholder[data-chart]").forEach(node=>{
+    const c=CHARTS[node.dataset.chart]; if(!c||!c.pts||!c.w) return;
+    if(node!==el&&c.N!==cfg.N) return;
+    const j=(node===el)?i:Math.max(0,Math.min(c.pts.length-1,Math.round(frac*(c.N-1))-c.i0));
+    renderHoverAt(node,c,j);
+  });
+}
+function renderHoverAt(el,cfg,i){
+  if(cfg.tipKey===i) return;
+  cfg.tipKey=i;
+  const guide=el.querySelector(".ch-guide"), tip=el.querySelector(".chtip");
+  if(!guide||!tip) return;
+  const o=cfg.o, r=el.getBoundingClientRect();
+  const plotW=cfg.w-cfg.padL-cfg.padR;
+  const p=cfg.pts[i];
+  let incNear=false;
+  if(cfg.mark){
+    incNear=cfg.mark.x!=null&&Math.abs(p.x-cfg.mark.x)<=Math.max(10,plotW*0.015);
+  }
+  const hit=(cfg.evByIdx&&cfg.evByIdx.get(i))||null;
+  guide.setAttribute("x1",p.x); guide.setAttribute("x2",p.x); guide.setAttribute("opacity",".55");
+  el.querySelectorAll(".ch-dot").forEach(d=>{
+    const k=+(d.dataset.ln||0), pk=(cfg.ptsL&&cfg.ptsL[k])?cfg.ptsL[k][i]:p;
+    d.setAttribute("cx",pk.x); d.setAttribute("cy",pk.y);
+    d.setAttribute("opacity",(cfg.lineOff&&cfg.lineOff.has(k)&&(cfg.defs||[]).length>1)?"0":"1");
+  });
+  const ck=globalClock((cfg.i0+i)/((cfg.N-1)||1));
+  let html;
+  if(cfg.defs&&cfg.defs.length>1){
+    html=ck?esc(ck):"";
+    cfg.defs.forEach((d,k)=>{
+      if(cfg.lineOff&&cfg.lineOff.has(k)) return;
+      const v=cfg.ptsL[k][i].v;
+      html+=`<div class="ctl"><span class="cdot" style="background:${d.color}"></span><span class="ctxt">${esc(d.name||"series "+(k+1))} <b>${v.toFixed(d.dec!=null?d.dec:o.decimals)}</b>${o.unit}</span></div>`;
+    });
+  } else {
+    html="<b>"+p.v.toFixed(cfg.tipDec!=null?cfg.tipDec:o.decimals)+o.unit+"</b>";
+    if(ck) html=ck+" · "+html;
+  }
+  const lines=[];
+  if(cfg.mark&&incNear){
+    lines.push(`<div class="ctl cinc"><span class="cdot" style="background:${cfg.mark.kind==='profile'?'#46cfc0':'#f0626b'}"></span><span class="ctxt">${cfg.mark.kind==='profile'?'profile':'incident'} · ${esc(cfg.mark.label)}</span></div>`);
+  }
+  if(cfg.gcSet&&cfg.gcSet.has(i)){
+    lines.push(`<div class="ctl"><span class="cdot" style="background:#e6b34a"></span><span class="ctxt">GC pause in this interval</span></div>`);
+  }
+  if(hit&&hit.length){
+    hit.slice(0,3).forEach(evn=>{
+      const lbl=String(evn[2]);
+      lines.push(`<div class="ctl"><span class="cdot" style="background:${ECOL[evn[1]]||"#9aa1ad"}"></span><span class="ctxt">${esc(String(evn[1]).toUpperCase())} ${esc(lbl.length>64?lbl.slice(0,64)+"…":lbl)}</span></div>`);
+    });
+    if(hit.length>3){
+      const c={};
+      hit.slice(3).forEach(x=>{c[x[1]]=(c[x[1]]||0)+1;});
+      lines.push(`<div class="ctl cmore"><span class="cdot" style="background:transparent"></span><span class="ctxt">+${hit.length-3} more (${Object.entries(c).map(([k,v])=>v+" "+k.toUpperCase()).join(", ")})</span></div>`);
+    }
+  }
+  tip.innerHTML=html+lines.join(""); tip.hidden=false;
+  const sx=r.width/cfg.w, sy=r.height/cfg.hh;
+  let lx=p.x*sx, ly=p.y*sy;
+  const tw=tip.offsetWidth, th=tip.offsetHeight, m=6;
+  // Clamp each tip inside its own card: synced tips on neighbouring charts must never overlap.
+  const half=Math.min(tw/2+2,r.width/2);
+  lx=Math.max(half,Math.min(r.width-half,lx));
+  const vl=r.left+lx-tw/2, vr=r.left+lx+tw/2;
+  if(vl<m) lx+=m-vl; else if(vr>innerWidth-m) lx-=vr-(innerWidth-m);
+  const flip=(ly-th-9<0)||(r.top+ly-th-9<m);
+  if(flip&&ly+12+th>r.height) ly=Math.max(0,r.height-th-12);
+  tip.style.transform=flip?"translate(-50%,12px)":"";
+  tip.style.left=lx+"px"; tip.style.top=ly+"px";
+}
+function attachChartHover(el){
+  if(el._hov) return; el._hov=true;
+  el.addEventListener("mousemove",e=>{
+    el._mx=e.clientX;
+    const cfg=CHARTS[el.dataset.chart]; if(!cfg) return;
+    const elapsed=performance.now()-(cfg.lastSwap||0);
+    if(elapsed>=80){
+      if(cfg.pend){clearTimeout(cfg.pend);cfg.pend=null;}
+      applyHover(el);
+    } else if(!cfg.pend){
+      cfg.pend=setTimeout(()=>{cfg.pend=null;applyHover(el);},Math.max(10,80-elapsed));
+    }
+  });
+  el.addEventListener("mouseleave",()=>{
+    const cfg=CHARTS[el.dataset.chart];
+    if(cfg){el._mx=null;if(cfg.pend){clearTimeout(cfg.pend);cfg.pend=null;}}
+    document.querySelectorAll(".chartholder[data-chart]").forEach(node=>{
+      const c=CHARTS[node.dataset.chart]; if(c)c.tipKey=null;
+      const g=node.querySelector(".ch-guide"), t=node.querySelector(".chtip");
+      if(g)g.setAttribute("opacity","0");
+      node.querySelectorAll(".ch-dot").forEach(d=>d.setAttribute("opacity","0"));
+      if(t)t.hidden=true;
+    });
+  });
+  el.addEventListener("mousedown",e=>{
+    if(e.button!==0) return;
+    const cfg=CHARTS[el.dataset.chart]; if(!cfg||!cfg.w) return;
+    const r=el.getBoundingClientRect(), sx=e.clientX;
+    let band=null, moved=false;
+    const toLocalFrac=cx=>{
+      const vx=(cx-r.left)/r.width*cfg.w;
+      return clamp01((vx-cfg.padL)/(cfg.w-cfg.padL-cfg.padR));
+    };
+    const mm=ev=>{
+      if(!moved&&Math.abs(ev.clientX-sx)<=6) return;
+      moved=true;
+      if(!band){band=document.createElement("div");band.className="zoomband";el.appendChild(band);}
+      band.style.left=(Math.min(sx,ev.clientX)-r.left)+"px";
+      band.style.width=Math.abs(ev.clientX-sx)+"px";
+    };
+    const mu=ev=>{
+      document.removeEventListener("mousemove",mm); document.removeEventListener("mouseup",mu);
+      if(band) band.remove();
+      if(!moved) return;
+      const f1=toLocalFrac(Math.min(sx,ev.clientX)), f2=toLocalFrac(Math.max(sx,ev.clientX));
+      const a=ZOOM?ZOOM.a:0, b=ZOOM?ZOOM.b:1;
+      const ga=a+f1*(b-a), gb=a+f2*(b-a);
+      if(gb-ga>=0.004) setZoom({a:ga,b:gb});
+    };
+    document.addEventListener("mousemove",mm); document.addEventListener("mouseup",mu);
+    e.preventDefault();
+  });
+  el.addEventListener("dblclick",()=>setZoom(null));
+}
+let ACTIVE_PRESET="all";
+function setZoom(z,preset){
+  ZOOM=z;
+  ACTIVE_PRESET=preset||(z?null:"all");
+  renderCharts();
+  updateStats();
+  updatePresetChips();
+  pruneBarTips();
+  const chip=$("#zoomchip"); if(!chip) return;
+  if(z){
+    const lbl=DV.span?(globalClock(z.a)+" → "+globalClock(z.b)):(Math.round(z.a*100)+"% → "+Math.round(z.b*100)+"%");
+    chip.querySelector("span").textContent="reset zoom · "+lbl;
+    chip.style.display="inline-flex";
+  } else chip.style.display="none";
+}
+function updatePresetChips(){
+  document.querySelectorAll("#presetrow .pchip").forEach(b=>b.classList.toggle("on",b.dataset.preset===ACTIVE_PRESET));
+}
+function buildPresetRow(){
+  const row=$("#presetrow"); if(!row) return;
+  const win=D.incident.windowSec;
+  if(!CHART_ID||!has(win)||win<=0) return;
+  const presets=[];
+  if(has(D.incident.markerFrac))
+    presets.push({id:"incident",label:"incident",range:()=>({a:clamp01(D.incident.markerFrac-60/win),b:1})});
+  const sl=Math.max(1,...Object.values(D.series||{}).filter(a=>Array.isArray(a)&&a.length>1).map(a=>a.length));
+  const bucketSec=sl>1?win/sl:0;
+  const eligible=[60,120,300,600,900,1800,3600,7200,21600,43200,86400,172800,604800,1209600,2592000]
+    .filter(d=>d<win/1.05&&(!bucketSec||d>=10*bucketSec));
+  const picked=[];
+  for(let i=eligible.length-1;i>=0;i--){
+    const d=eligible[i];
+    if(picked.length>=5) break;
+    if(picked.length&&picked[picked.length-1]/d<3) continue;
+    picked.push(d);
+  }
+  picked.sort((a,b)=>a-b);
+  const durLabel=d=>d>=86400?(d/86400)+"d":d>=3600?(d/3600)+"h":(d/60)+"m";
+  picked.forEach(d=>presets.push({id:"d"+d,label:durLabel(d),range:()=>({a:clamp01(1-d/win),b:1})}));
+  presets.push({id:"all",label:"all",range:()=>null});
+  if(presets.length<=1) return;
+  row.innerHTML=`<span class="plab2">time range</span>`
+    +presets.map(p=>`<button type="button" class="pchip" data-preset="${p.id}">${esc(p.label)}</button>`).join("");
+  row.style.display="flex";
+  document.body.classList.add("has-presets");
+  row.querySelectorAll(".pchip").forEach(b=>b.addEventListener("click",()=>{
+    const p=presets.find(x=>x.id===b.dataset.preset); if(!p) return;
+    setZoom(p.range(),p.id);
+  }));
+  updatePresetChips();
+}
+function updateStats(){
+  document.querySelectorAll(".mstats[data-stats]").forEach(el=>{
+    const cfg=CHARTS[el.dataset.stats]; if(!cfg||!cfg.mkStats) return;
+    if(!ZOOM){ el.innerHTML=cfg.statHtml0; return; }
+    const N=cfg.series.length;
+    let i0=Math.max(0,Math.floor(ZOOM.a*(N-1))), i1=Math.min(N-1,Math.ceil(ZOOM.b*(N-1)));
+    if(i1<=i0) i1=Math.min(N-1,i0+1);
+    el.innerHTML=cfg.mkStats(cfg.series.slice(i0,i1+1),true);
+  });
+  for(const id in CHARTS){ const c=CHARTS[id]; if(c.pmUpdate) c.pmUpdate(); }
+}
+function pruneBarTips(){
+  document.querySelectorAll("[data-tipov]").forEach(el=>{
+    const tip=el.getAttribute("data-tipov")||"";
+    const truncated=el.scrollWidth>el.clientWidth+1;
+    if(truncated||tip.trim()!==el.textContent.trim()) el.setAttribute("data-tip",tip);
+    else el.removeAttribute("data-tip");
+  });
+}
+function donut(segs,{size=132,thick=20}={}){
+  const r=(size-thick)/2, c=size/2, circ=2*Math.PI*r;
+  let off=0, ring="";
+  const total=segs.reduce((a,s)=>a+s.v,0)||1;
+  segs.forEach(s=>{ const len=circ*s.v/total;
+    ring+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${s.c}" stroke-width="${thick}" stroke-dasharray="${len.toFixed(2)} ${(circ-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${c} ${c})"/>`;
+    off+=len; });
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${ring}<text x="${c}" y="${c-2}" text-anchor="middle" fill="#eaecf1" font-size="22" font-family="ui-monospace,Menlo,monospace" font-weight="600">${total}</text><text x="${c}" y="${c+15}" text-anchor="middle" fill="#6b7280" font-size="10" letter-spacing=".1em">THREADS</text></svg>`;
+}
+
+const I = {
+  warn:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.7 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg>',
+  cpu:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><rect x="9.5" y="9.5" width="5" height="5" rx=".7"/><path d="M9 2v2M12 2v2M15 2v2M9 20v2M12 20v2M15 20v2M2 9h2M2 12h2M2 15h2M20 9h2M20 12h2M20 15h2"/></svg>',
+  linux:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2 0-3.3 1.7-3.3 3.9 0 1 .1 1.6.1 2.4 0 .8-.7 1.6-1.4 2.7C6.4 12.4 5 14.2 5 16c0 .9.4 1.4 1 1.7-.2.5-.4 1-.4 1.5 0 .6.4 1 1 1.2.5.2 1.2.2 1.9.4.6.2 1.1.6 1.9.6.5 0 .9-.2 1.1-.5.2.3.6.5 1.1.5.8 0 1.3-.4 1.9-.6.7-.2 1.4-.2 1.9-.4.6-.2 1-.6 1-1.2 0-.5-.2-1-.4-1.5.6-.3 1-.8 1-1.7 0-1.8-1.4-3.6-2.4-5-.7-1.1-1.4-1.9-1.4-2.7 0-.8.1-1.4.1-2.4C15.3 3.7 14 2 12 2zm-1.6 4.1c.4 0 .7.4.7.9s-.3.9-.7.9-.7-.4-.7-.9.3-.9.7-.9zm3.2 0c.4 0 .7.4.7.9s-.3.9-.7.9-.7-.4-.7-.9.3-.9.7-.9zM12 8.6c.7 0 1.5.3 2 .7.3.2.2.5-.1.6l-1.5.7c-.3.1-.6.1-.9 0l-1.5-.7c-.3-.1-.4-.4-.1-.6.5-.4 1.3-.7 2.1-.7z"/></svg>',
+  java:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13.5h11v2.2a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z"/><path d="M16 14h1.6a1.7 1.7 0 0 1 0 3.4H16"/><path d="M9.5 9.5c-1-1 .5-2 .5-3s-1-1.5-.6-2.6"/><path d="M12.8 9.8c-.8-.8.4-1.6.4-2.4"/><line x1="6.5" y1="21.5" x2="15.5" y2="21.5"/></svg>',
+  win:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.6 10.4 4.5v7H3zM11.4 4.35 21 3v8.5h-9.6zM3 12.5h7.4v6.9L3 18.4zM11.4 12.5H21V21l-9.6-1.4z"/></svg>',
+  apple:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.8-3.5.8s-1.8-.8-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7 2-1 2.8-2.1c.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.3 5.8c.6-.8 1-1.9.9-3-1 0-2.1.6-2.8 1.4-.6.7-1.1 1.8-1 2.8 1.1.1 2.2-.5 2.9-1.2z"/></svg>',
+  server:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><line x1="7" y1="7.5" x2="7" y2="7.5"/><line x1="7" y1="16.5" x2="7" y2="16.5"/></svg>',
+  ram:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="1.5"/><path d="M6 17v2M10 17v2M14 17v2M18 17v2"/><rect x="6" y="10.5" width="3" height="3.5"/><rect x="15" y="10.5" width="3" height="3.5"/></svg>',
+  threads:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="12" cy="18" r="2.4"/><path d="M6 8.4V13a2 2 0 0 0 2 2h2.2M18 8.4V13a2 2 0 0 1-2 2h-2.2"/></svg>',
+  net:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18V6l-3.2 3.2M7 6l3.2 3.2"/><path d="M17 6v12l3.2-3.2M17 18l-3.2-3.2"/></svg>',
+  clock:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  heap:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>',
+  gc:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>',
+  players:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3.2 3.2 0 0 1 0 5M18 20a6 6 0 0 0-3-5.2"/></svg>',
+  bolt:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+  pulse:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3 8 4-16 3 8h6"/></svg>',
+  layers:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
+  globe:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg>',
+  chip:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>',
+  doc:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>',
+  term:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>',
+  copy:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  search:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+  chev:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  check:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  ext:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4 10 14M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/></svg>',
+  fire:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 3-2 4-2 7a2 2 0 0 0 4 0c0-1 0-1.5-.5-2.5 2 1.3 3.5 3.6 3.5 6.5a5 5 0 0 1-10 0c0-3.5 3-5 5-11z"/></svg>',
+  disk:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg>'
+};
+
+$("#brandGlyph").innerHTML = '<span style="color:var(--crit)">'+I.warn+'</span>';
+
+const DV=(()=>{
+  const worlds=D.worlds||[];
+  const sampled=worlds.filter(w=>has(w.samples)&&w.samples>0);
+  const ranked=[...sampled].sort((a,b)=>b.samples-a.samples);
+  const stalled=worlds.find(w=>w.stalled)||null;
+  const rankedAll=[...worlds].sort((a,b)=>(b.samples||0)-(a.samples||0));
+  const ts=D.threadStates||null;
+  const blocked=ts?(ts.BLOCKED||0):null;
+  const ser=D.series||{};
+  const heapG=ser.heap?ser.heap.map(gib):null;
+  const rssG=ser.rss?ser.rss.map(gb):null;
+  const diskG=ser.disk?ser.disk.map(gb):null;
+  const hostMemG=ser.hostMem?ser.hostMem.map(gb):null;
+  return {
+    worlds, ranked, topWorld:ranked[0]||null, stalled,
+    stalledRank: stalled?rankedAll.indexOf(stalled)+1:0,
+    topThread:(D.hotThreads&&D.hotThreads[0])||null,
+    topMethod:(D.hotMethods&&D.hotMethods[0])||null,
+    gcHealthy:D.gc?D.gc.maxPauseMs<50:null,
+    blocked, deadlock:blocked!=null?blocked>0:null,
+    memBasis:(D.sys&&D.sys.container&&has(D.sys.container.memLimit)&&D.sys.container.memLimit>0)?"container limit":"machine RAM",
+    memLimitBytes:(D.sys&&D.sys.container&&has(D.sys.container.memLimit)&&D.sys.container.memLimit>0)?D.sys.container.memLimit:((D.sys&&has(D.sys.ramTotal)&&D.sys.ramTotal>0)?D.sys.ramTotal:null),
+    memPct:(D.ram&&has(D.ram.rssLast)&&D.sys)?(()=>{const l=(D.sys.container&&has(D.sys.container.memLimit)&&D.sys.container.memLimit>0)?D.sys.container.memLimit:((has(D.sys.ramTotal)&&D.sys.ramTotal>0)?D.sys.ramTotal:null);return l?100*D.ram.rssLast/l:null;})():null,
+    machBound:D.cpu?D.cpu.machMax<50:null,
+    lowLoad:(D.incident.samples||0)<300,
+    heapG, rssG, diskG, hostMemG,
+    win:has(D.incident.windowSec)?Math.floor(D.incident.windowSec/60)+"m "+String(D.incident.windowSec%60).padStart(2,"0")+"s":null,
+    span:(D.incident.recStart&&has(D.incident.windowSec))?{from:D.incident.recStart,to:secToHms(hmsToSec(D.incident.recStart)+D.incident.windowSec)}:null,
+    incMarker:has(D.incident.markerFrac)?{label:has(D.incident.stallMs)?("stall "+D.incident.stallMs+"ms"):humanTrigger(D.incident.trigger),
+      frac:D.incident.markerFrac,
+      recoverySec:has(D.incident.recoverySec)?D.incident.recoverySec:null,kind:'incident'}
+      :has(D.incident.profileFrac)?{label:'profile start',frac:D.incident.profileFrac,recoverySec:null,kind:'profile'}:null,
+    gcName:D.sys?gcDisplayName(D.sys.gcYoung,D.sys.gcOld):null,
+    samples:D.incident.samples||null
+  };
+})();
+const sevClass = D.incident.severity==="CRITICAL"?"bad":D.incident.severity==="DEGRADED"?"warn":"good";
+
+function modOfConfig(cfg){
+  const base=String(cfg).toLowerCase().replace(/\.mixins\.json$/,"").replace(/^_+/,"");
+  let best=null;
+  if(base.length>=3){
+    (D.plugins||[]).forEach(p=>{
+      const nm=String(p[1]||""), nml=nm.toLowerCase(), aul=String(p[0]||"").toLowerCase();
+      if(nml.includes(base)||(nml.length>=3&&base.includes(nml))||(aul.length>=3&&aul.includes(base))){
+        if(!best||nm.length<best.length) best=nm;
+      }
+    });
+  }
+  if(best) return best;
+  if(D.mixins&&D.mixins.bootstrapper){
+    const bs=String(D.mixins.bootstrapper).split(" ")[0], bsl=bs.toLowerCase();
+    if(bsl.includes(base)||base.includes(bsl)) return bs;
+  }
+  return String(cfg);
+}
+const MIXCONF=(()=>{
+  const raw=(D.mixins&&Array.isArray(D.mixins.conflicts))?D.mixins.conflicts:null;
+  const byConfig=new Set(), modInfo=new Map();
+  let list=null;
+  if(raw){
+    list=raw.map(c=>[c[0],(c[1]||[]).map(p=>Array.isArray(p)?[p[0],p[1]??null]:[p,null])]);
+    list.forEach(c=>{
+      const shortT=String(c[0]).split(".").pop();
+      c[1].forEach((p,pi)=>{
+        byConfig.add(p[0]);
+        const mod=modOfConfig(p[0]);
+        const others=c[1].filter((_,j)=>j!==pi).map(q=>modOfConfig(q[0])).join(" + ");
+        const line=`${p[1]||p[0]} ↔ ${others} on ${shortT}`;
+        if(!modInfo.has(mod)) modInfo.set(mod,[]);
+        modInfo.get(mod).push(line);
+      });
+    });
+  }
+  return {list,byConfig,modInfo};
+})();
+
+$("#navfoot").innerHTML = `Generated offline by Blackbox${D.blackboxVersion?" v"+esc(D.blackboxVersion):""}<br>Self-contained report · ${esc((D.incident.created||"").split(" ")[0])}`;
+(function(){
+  const slot=$("#copySlot");
+  if(slot){ slot.innerHTML=`<button class="copybtn" id="copyMd">${I.copy} Copy as Markdown</button>`; }
+})();
+
+(function(){
+  if(!has(D.incident.note)) return;
+  const rn=document.createElement("div");
+  rn.className="cwarn"; rn.id="recoverynote";
+  rn.innerHTML=`${I.warn}<span>${esc(D.incident.note)}</span>`;
+  document.querySelector("header").insertAdjacentElement("afterend",rn);
+})();
+
+(function(){
+  const s=D.sys; if(!s){return;}
+  const chips=[];
+  if(s.os) chips.push({ic:osIcon(s.os),l:"Operating system",v:s.os,tip:osFamily(s.os)+" · "+s.os+(s.arch?" · "+s.arch:"")});
+  if(s.cpuBrand||has(s.cpuCores)){
+    const v=s.cpuBrand||((s.cpuCores||"?")+" cores");
+    chips.push({ic:I.cpu,l:"Processor",v:v,tip:[s.cpuBrand,has(s.hwThreads)?s.hwThreads+" hw threads":null,has(s.sockets)?s.sockets+" socket(s)":null].filter(Boolean).join(" · ")||v});
+  }
+  if(s.jvm) chips.push({ic:I.java,l:"Java runtime",v:((s.javaVendor?jvmDistro(s.javaVendor)+" ":"")+(s.javaVersion||"")).trim()||s.jvm,tip:s.jvm+(s.javaVendor?" · "+s.javaVendor:"")});
+  if(s.hytale||s.server) chips.push({ic:I.server,l:"Server",v:s.hytale?("Hytale "+s.hytale):s.server,tip:[s.server,s.hytale?("Hytale Dedicated "+s.hytale):null].filter(Boolean).join(" · ")});
+  if(DV.gcName) chips.push({ic:I.gc,l:"Garbage collector",v:DV.gcName,tip:[s.gcYoung&&s.gcOld?s.gcYoung+" + "+s.gcOld:null,has(s.gcParallel)?s.gcParallel+" parallel / "+(s.gcConc??"?")+" concurrent GC threads":null].filter(Boolean).join(" · ")||DV.gcName});
+  $("#envstrip").innerHTML = chips.map(e=>`<div class="echip" data-tip="${esc(e.tip)}"><span class="eic">${e.ic}</span><div><div class="el">${e.l}</div><div class="ev">${esc(e.v)}</div></div></div>`).join("");
+})();
+
+const S=[];
+let SECNUM=1;
+function sec(id,icon,title,sub,body){
+  if(!body) return "";
+  SECNUM++;
+  const num=String(SECNUM).padStart(2,"0");
+  S.push({id,icon,num,title});
+  return `<section id="${id}"><div class="sh" data-collapse><span class="sic">${icon}</span><span class="num">${num}</span><h2>${title}</h2><span class="sub">${sub||""}</span><span class="chev">${I.chev}</span></div><div class="sbody">${body}</div></section>`;
+}
+
+function containerRisk(){
+  const c=D.sys&&D.sys.container;
+  if(!c||!has(c.memLimit)||c.memLimit<=0) return null;
+  if(!has(D.sys.xmxBytes)||D.sys.xmxBytes<=0) return null;
+  return D.sys.xmxBytes>0.9*c.memLimit?{xmx:D.sys.xmxBytes,lim:c.memLimit}:null;
+}
+function diskRisk(){
+  const d=D.sys&&D.sys.disk;
+  if(!d||!has(d.free)||!has(d.total)||d.total<=0) return null;
+  return (d.free<0.05*d.total||d.free<2*1024*1024*1024)?{free:d.free,total:d.total}:null;
+}
+function sliceAvg(arr,a,b){
+  const N=arr.length;
+  let i0=Math.max(0,Math.floor(a*(N-1))), i1=Math.min(N-1,Math.ceil(b*(N-1)));
+  if(i1<i0) i1=i0;
+  let s=0,n=0;
+  for(let i=i0;i<=i1;i++){s+=arr[i];n++;}
+  return n?s/n:null;
+}
+function comparisonHtml(){
+  if(!has(D.incident.markerFrac)||D.incident.markerFrac<0.2) return "";
+  const ser=D.series||{}, mf=D.incident.markerFrac;
+  const recov=has(D.incident.recoverySec);
+  const term=D.incident.trigger==="MANUAL"?"profile":"incident";
+  const b1=Math.max(0.1,mf-0.1), ia=Math.max(0,mf-0.02);
+  const metrics=[
+    {l:"Tick rate",s:ser.tps,u:"tps",dec:1,bad:"down"},
+    {l:"Tick interval",s:ser.mspt,u:"ms",dec:1,bad:"up"},
+    {l:"Players",s:ser.players,u:"players",dec:0,bad:null},
+    {l:"Entities",s:ser.entities,u:"entities",dec:0,bad:"up25warn"},
+    {l:"Chunks",s:ser.chunks,u:"chunks",dec:0,bad:null},
+    {l:"Machine CPU",s:ser.cpu,u:"%",dec:1,bad:"up"},
+    {l:"Heap",s:DV.heapG,u:"GiB",dec:1,bad:null},
+    {l:"RSS",s:DV.rssG,u:"GB",dec:1,bad:null},
+    {l:"Host memory",s:DV.hostMemG,u:"GB",dec:1,bad:"up"},
+    {l:"Disk free",s:DV.diskG,u:"GB",dec:1,bad:"down"},
+    {l:"Disk write",s:ser.diskWrite,u:"MB/s",dec:1,bad:"up"},
+    {l:"Disk read",s:ser.diskRead,u:"MB/s",dec:1,bad:"up"},
+    {l:"Net out",s:ser.netOut,u:"Mb/s",dec:1,bad:null},
+    {l:"Net in",s:ser.netIn,u:"Mb/s",dec:1,bad:null},
+    {l:"Threads",s:ser.threads,u:"threads",dec:0,bad:null},
+    {l:"GC pause",s:ser.gcPause,u:"ms",dec:2,bad:"up"},
+    {l:"Exceptions",s:ser.exceptions,u:"/interval",dec:1,bad:"up"},
+    {l:"Ping",s:ser.ping,u:"ms",dec:0,bad:"up"}
+  ].filter(m=>m.s&&m.s.length>=10);
+  if(metrics.length<3) return "";
+  function cmpRow(l,base,inc,u,dec,bad){
+    if(base==null||inc==null) return "";
+    dec=autoDec(Math.min(base,inc),Math.max(base,inc),dec);
+    let delta;
+    if(Math.abs(base)<1e-9){
+      delta='<span class="pct">·</span>';
+    } else {
+      const d=100*(inc-base)/Math.abs(base);
+      let cls="pct";
+      if(bad==="up25warn"){
+        if(d>25) cls="v-warn";
+      } else if(Math.abs(d)>=5&&bad){
+        const isBad=(bad==="up"&&d>0)||(bad==="down"&&d<0);
+        cls=isBad?"v-bad":"v-good";
+      }
+      delta=`<span class="${cls}">${d>0?"+":""}${Math.abs(d)>=100?d.toFixed(0):d.toFixed(1)}%</span>`;
+    }
+    return `<tr data-cmp="${esc(l)}" data-base="${base.toFixed(4)}" data-inc="${inc.toFixed(4)}"><td class="nm">${esc(l)}</td><td class="r">${base.toFixed(dec)} ${esc(u)}</td><td class="r">${inc.toFixed(dec)} ${esc(u)}</td><td class="r">${delta}</td></tr>`;
+  }
+  let rows=metrics.map(m=>cmpRow(m.l,sliceAvg(m.s,0,b1),sliceAvg(m.s,ia,1),m.u,m.dec,m.bad)).join("");
+  if(Array.isArray(D.events)&&has(D.incident.windowSec)&&D.incident.windowSec>0){
+    const wMin=D.incident.windowSec/60;
+    const cnt=(a,b)=>D.events.reduce((s,e)=>{
+      if(e[1]!=="error"||e[0]<a||e[0]>=b) return s;
+      const m=/ ×(\d+)$/.exec(String(e[2]));
+      return s+(m?+m[1]:1);
+    },0);
+    const bm=b1*wMin, im=(1-ia)*wMin;
+    if(bm>0&&im>0) rows+=cmpRow("Log errors",cnt(0,b1)/bm,cnt(ia,1.0001)/im,"/min",1,"up");
+  }
+  if(Array.isArray(D.tickSeries)&&D.tickSeries.length){
+    [...D.tickSeries]
+      .map(ts=>({ts,avg:ts.series.reduce((a,v)=>a+v,0)/(ts.series.length||1)}))
+      .sort((a,b)=>b.avg-a.avg).slice(0,3)
+      .forEach(x=>{rows+=cmpRow(x.ts.name,sliceAvg(x.ts.series,0,b1),sliceAvg(x.ts.series,ia,1),"ms",1,"up");});
+  }
+  if(!rows) return "";
+  return `<div class="card cmpwrap" id="cmpcard"><h3><span class="ic" style="color:var(--blue)">${I.clock}</span> Baseline vs ${term} window</h3>
+    <div class="subnote">Average over the calm window vs the ${term} window. Calm: the first ${Math.round(b1*100)}% of the recording; ${term}: from just before the marker${recov?" through recovery":" to the end of the capture"}.</div>
+    <div class="tscroll"><table><thead><tr>${thc("Metric","Series averaged over each window")}${thc("Baseline avg","Average over the calm window",{r:true})}${thc((term==="profile"?"Profile":"Incident")+" avg","Average from just before the "+term+(recov?" through recovery":" to the end of the capture"),{r:true})}${thc("Delta","Red when the change direction is bad for this metric; grey under ±5%.",{r:true})}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+function diagnosisHtml(){
+  const T=DV.samples, ser=D.series||{};
+  const ev=[];
+  const row=(html,link,label)=>ev.push(`<li><span class="fi" style="color:var(--warn)">${I.fire}</span><span>${html}${link?` <a class="evlink" href="${link}">${label} ↗</a>`:""}</span></li>`);
+  if(DV.topWorld&&T) row(`<code>WorldThread - ${esc(DV.topWorld.name)}</code> produced <b>${pct(DV.topWorld.samples,T).toFixed(1)}%</b> of ${fmt(T)} CPU samples, the largest single consumer.`,"#cpu","CPU &amp; load");
+  if(DV.topMethod&&T) row(`Top frame <code>${esc(leafName(DV.topMethod[1]))}</code> holds <b>${pct(DV.topMethod[0],T).toFixed(2)}%</b> of samples (${fmt(DV.topMethod[0])} hits).`,"#methods","hot methods");
+  if(DV.stalled&&has(DV.stalled.samples)&&T) row(`The stalled world <code>${esc(worldLabel(DV.stalled.name))}</code> drew <b>${pct(DV.stalled.samples,T).toFixed(1)}%</b> of samples, #${DV.stalledRank} of ${DV.worlds.length} by CPU.`,"#worlds","worlds");
+  if(D.gc) row(`${esc(DV.gcName||"GC")} ran <b>${D.gc.collections}</b> collections, longest pause <b>${D.gc.maxPauseMs} ms</b> (${D.gc.totalPauseMs} ms total).`,"#memory","memory &amp; GC");
+  if(DV.deadlock!=null) row(DV.deadlock
+    ? `<b>${DV.blocked}</b> thread(s) were BLOCKED at capture; inspect their stacks for a circular wait.`
+    : `<b>0</b> threads BLOCKED at capture, so lock contention is unlikely.`,"#states","thread states");
+  if(D.ram&&has(DV.memPct)) row(`Process RSS <b>${gb(D.ram.rssLast).toFixed(1)} GB</b> of ${gb(DV.memLimitBytes).toFixed(1)} GB ${DV.memBasis} (${DV.memPct.toFixed(0)}%)${D.heap&&has(D.heap.max)&&D.heap.max>0?`; heap peaked at <b>${gib(D.heap.peak).toFixed(1)}</b> of ${gib(D.heap.max).toFixed(1)} GiB`:""}.`,"#memory","memory &amp; GC");
+  let exSpike=null;
+  if(ser.exceptions&&ser.exceptions.length>=10){
+    const arr=ser.exceptions, st=sstat(arr);
+    let maxI=0; arr.forEach((v,i)=>{if(v>arr[maxI])maxI=i;});
+    if(st.avg>0&&arr[maxI]>5*st.avg&&maxI>=Math.floor(arr.length*0.9)) exSpike={v:arr[maxI],avg:st.avg};
+  }
+  if(exSpike) row(`<b>${fmt(exSpike.v)}</b> exceptions/interval right before the incident, <b>${(exSpike.v/exSpike.avg).toFixed(0)}×</b> the window average of ${exSpike.avg.toFixed(1)}.`,"#metrics","key metrics");
+  const allocLead=(D.alloc&&D.alloc.bySubsystem&&D.alloc.bySubsystem.length&&!String(D.alloc.bySubsystem[0][0]).startsWith("Other"))?D.alloc.bySubsystem[0]:null;
+  if(allocLead) row(`<b>${esc(allocLead[0])}</b> leads allocation pressure at <b>${fmtBytes(allocLead[1])}</b> sampled.`,"#memory","allocation");
+  const cRisk=containerRisk();
+  if(cRisk) row(`Heap -Xmx <b>${gib(cRisk.xmx).toFixed(1)} GiB</b> is at or above the container memory limit of <b>${gib(cRisk.lim).toFixed(1)} GiB</b>; the JVM can be OOM-killed before GC reacts.`,"#system","system");
+  const incompatN=(D.plugins||[]).filter(p=>p&&p[5]==="INCOMPATIBLE").length;
+  if(incompatN) row(`<b>${incompatN}</b> installed mod${incompatN===1?" declares":"s declare"} a server version range that excludes the running server.`,"#plugins","plugins");
+  const cmp=comparisonHtml();
+  if(ev.length<2) return cmp;
+
+  let cause="Inconclusive · review recording.jfr in JDK Mission Control";
+  if(DV.topWorld&&DV.machBound===true&&!DV.lowLoad) cause=`Single-thread tick saturation (${worldLabel(DV.topWorld.name)})`;
+  else if(DV.machBound===false) cause="Host-wide CPU saturation";
+
+  const sig=[];
+  if(DV.topWorld&&T) sig.push({ok:!DV.lowLoad&&pct(DV.topWorld.samples,T)>=25,label:"world-thread dominance"});
+  if(DV.topMethod&&T) sig.push({ok:pct(DV.topMethod[0],T)>=2,label:"hot-method share"});
+  if(DV.gcHealthy!=null) sig.push({ok:DV.gcHealthy===true,label:"GC ruled out"});
+  if(ser.exceptions) sig.push({ok:!!exSpike,label:"exception spike near the incident"});
+  if(DV.machBound!=null) sig.push({ok:DV.machBound===true,label:"machine CPU headroom"});
+  const okN=sig.filter(s=>s.ok).length;
+  const conf=okN>=4?"high":okN>=2?"medium":"low";
+  const confTip=sig.map(s=>(s.ok?"✓ ":"✗ ")+s.label).join("; ");
+
+  const steps=[];
+  if(DV.deadlock) steps.push(`Resolve the deadlock: ${DV.blocked} blocked threads (<a href="#states">thread states</a>)`);
+  if(DV.topWorld) steps.push(`Profile <code>WorldThread - ${esc(DV.topWorld.name)}</code> in JDK Mission Control (recording.jfr in this bundle)`);
+  const topSub=(D.subsystems||[]).find(x=>!String(x[0]).startsWith("Other"));
+  if(topSub&&T) steps.push(`Review the ${esc(topSub[0])} hot path: ${fmt(topSub[1])} samples, ${pct(topSub[1],T).toFixed(1)}% of CPU (<a href="#methods">hot methods</a>)`);
+  if(MIXCONF.list&&MIXCONF.list.length) steps.push(`Inspect the ${MIXCONF.list.length} class${MIXCONF.list.length===1?"":"es"} patched by multiple mixin configs (<a href="#config">mixins</a>)`);
+  if(exSpike) steps.push(`Trace the exception burst in the <a href="#log">server log</a> tail`);
+  const stepHtml=steps.slice(0,3).map(s=>`<li>${s}</li>`).join("");
+
+  const intro=has(D.incident.stallMs)&&D.incident.worldShort
+    ? `<code>${esc(D.incident.trigger)}</code> fired after <b>${esc(D.incident.worldShort)}</b> missed its heartbeat by <b>${fmt(D.incident.stallMs)} ms</b>. Every line below is computed from this bundle's recording.`
+    : `<code>${esc(D.incident.trigger)}</code> fired at ${esc(D.incident.created)}. Every line below is computed from this bundle's recording.`;
+  const left=`<div class="card glow"><h3><span class="ic">${I.warn}</span> Evidence</h3>
+    <div class="diagtext">${intro}</div>
+    <ul class="findings">${ev.join("")}</ul></div>`;
+
+  const vrows=[];
+  vrows.push(`<div class="vrow"><span class="vk">Severity</span><span class="vv ${sevClass}">${esc(D.incident.severity)}</span></div>`);
+  vrows.push(`<div class="vrow"><span class="vk">Likely cause</span><span class="vv">${esc(cause)}</span></div>`);
+  vrows.push(`<div class="vrow"><span class="vk">Confidence</span><span class="vv"><span class="tag ${conf==="high"?"ok":(conf==="low"?"no":"")}" data-confidence data-tip="${esc(confTip)}">confidence: ${conf} · ${okN}/${sig.length} signals</span></span></div>`);
+  const tags=[];
+  if(DV.gcHealthy!=null) tags.push(`<span class="tag ${DV.gcHealthy?'ok':'no'}">GC: ${DV.gcHealthy?'nominal':'elevated'}</span>`);
+  if(DV.deadlock!=null) tags.push(`<span class="tag ${DV.deadlock?'no':'ok'}">${DV.deadlock?'blocked threads':'no deadlock'}</span>`);
+  const right=`<div class="card"><h3><span class="ic" style="color:var(--blue)">${I.pulse}</span> Verdict</h3>
+    <div class="verdict">${vrows.join("")}</div>
+    ${stepHtml?`<div style="margin-top:14px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--tx3)">Next steps</div><ol class="nextsteps">${stepHtml}</ol>`:""}
+    ${tags.length?`<div class="tagrow" style="margin-top:12px">${tags.join("")}</div>`:""}</div>`;
+  return `<div class="diag">${left}${right}</div>`+cmp;
+}
+
+function statsInner(o){
+  const d=autoDec(o.min,o.max,o.dec), f=v=>Number(v).toFixed(d);
+  const parts=[];
+  if(has(o.now)) parts.push(`<span class="mnow" data-stat="now">${o.nowLabel||"now"} <b${o.nowCls?` class="${o.nowCls}"`:""}>${f(o.now)}</b>${o.nowSuffix||""}</span>`);
+  parts.push(`<span data-stat="min">min <b${o.minCls?` class="${o.minCls}"`:""}>${f(o.min)}</b></span>`);
+  parts.push(`<span data-stat="avg">avg <b>${f(o.avg)}</b></span>`);
+  parts.push(`<span data-stat="max">max <b${o.maxCls?` class="${o.maxCls}"`:""}>${f(o.max)}</b></span>`);
+  let out=parts.join('<span class="msep">·</span>');
+  if(o.unitLabel) out+=` <span class="munit">${esc(o.unitLabel)}</span>`;
+  if(o.extra) out+=`<span class="msep">·</span>${o.extra}`;
+  return out;
+}
+function legendHtml(withGc){
+  const parts=[`<span class="ls"><span class="smp"></span>metric</span>`];
+  if(has(D.incident.markerFrac)) parts.push(`<span class="ls inctog" data-inctog data-tip="toggle the incident marker line and window tint"><span class="smp dsh"></span>incident</span>`);
+  else if(has(D.incident.profileFrac)) parts.push(`<span class="ls inctog" data-inctog data-tip="toggle the profile-start marker"><span class="smp dsh" style="background:#46cfc0"></span>profile start</span>`);
+  if(D.events&&D.events.length){
+    parts.push(`<span class="ls"><span class="evmaster" data-evmaster data-tip="hide or show event lines in this section"><span class="smp evs"></span> events</span> `
+      +["error","warn","gc","plugin","conn"].map(t=>`<span class="edot evtog" data-evtype="${t}" style="background:${ECOL[t]}" data-tip="toggle ${t==="conn"?"connection":t} events"></span>`).join("")
+      +`<span class="evcount"></span>${(has(D.eventsHidden)&&D.eventsHidden>0)?`<span class="evmore" data-tip="${D.eventsHidden} earlier event${D.eventsHidden===1?"":"s"} exceeded the on-chart cap and are not shown">+${D.eventsHidden} earlier</span>`:""}</span>`);
+  }
+  if(withGc&&Array.isArray(D.gcOverlap)&&D.gcOverlap.length){
+    parts.push(`<span class="ls gctog" data-gctog data-tip="toggle the amber GC-overlap highlight"><span class="edot" style="background:#e6b34a"></span> GC overlap</span>`);
+  }
+  return `<div class="chlegend">${parts.join("")}</div>`;
+}
+
+function metricsHtml(){
+  const ser=D.series||{};
+  const cards=[];
+  const flatZero=[];
+  const allZero=s=>Array.isArray(s)&&s.length>0&&s.every(v=>v===0);
+  const tickWhy=D.tps?(D.incident.world&&D.incident.world!==D.tps.world
+    ?` Shown for ${worldLabel(D.tps.world)}, the busiest world by CPU samples; the incident world has no tick series.`
+    :` Shown for the incident world.`):"";
+  const card=(ic,title,tip,series,chartOpts,statBuilder)=>{
+    const chart=lineChart(series,Object.assign({h:170,times:DV.span,marker:DV.incMarker},chartOpts));
+    const cid="ch"+CHART_ID;
+    const html0=statBuilder(series,false);
+    CHARTS[cid].mkStats=statBuilder; CHARTS[cid].statHtml0=html0;
+    const hint=(chartOpts&&chartOpts.gcIdx&&Array.isArray(D.gcOverlap)&&D.gcOverlap.length)?`<span class="gchint gctog" data-gctog data-tip="toggle the amber GC-overlap highlight">amber = GC overlap</span>`:"";
+    cards.push(`<div class="chartcard mcard"><div class="cth"><span class="ctt"${tip?` data-tip="${esc(tip)}"`:""}><span class="cic">${ic}</span>${title}</span><span class="mstats" data-stats="${cid}">${html0}</span>${hint}</div>${chart}</div>`);
+  };
+
+  if(ser.mspt){
+    const sw=DV.stalled;
+    const swPct=(sw&&(has(sw.msptP95)||has(sw.msptMax)))
+      ?` Stalled world ${worldLabel(sw.name)}: ${[has(sw.msptP95)?"p95 "+sw.msptP95.toFixed(1)+" ms":null,has(sw.msptMax)?"max "+sw.msptMax.toFixed(1)+" ms":null].filter(Boolean).join(", ")}.`:"";
+    const tw=D.tps?(D.worlds||[]).find(w=>w.name===D.tps.world):null;
+    card(I.bolt,`Tick interval${D.tps?` · ${esc(worldLabel(D.tps.world))}`:""}`,
+      `Milliseconds per tick${has(D.incident.stallMs)?"; the spike at the marker is the triggering stall":""}. Amber pieces overlap a GC pause.${tickWhy}${swPct}`,
+      ser.mspt,{color:"#f0626b",unit:" ms",decimals:1,gcIdx:true},
+      (s,z)=>{const st=sstat(s);const stall=has(D.incident.stallMs)&&markerInZoom();
+        const ex=[];
+        if(!z&&tw&&has(tw.msptMax)&&tw.msptMax>st.max) ex.push(`<span data-stat="worst" data-tip="Worst single tick in the window. The chart averages ticks per bucket, so single-tick spikes flatten out.">worst tick <b>${tw.msptMax.toFixed(1)} ms</b></span>`);
+        if(stall) ex.push(`<span data-stat="stall">stall <b class="v-warn">${fmt(D.incident.stallMs)} ms</b></span>`);
+        return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,max:st.max,dec:1,unitLabel:"ms",
+          maxCls:stall?"v-warn":null,
+          extra:ex.length?ex.join('<span class="msep">·</span>'):null});});
+  }
+  if(ser.tps){
+    const target=(D.tps&&has(D.tps.target))?D.tps.target:null;
+    card(I.pulse,`Tick rate${D.tps?` · ${esc(worldLabel(D.tps.world))}`:""}`,
+      `Measured tick rate sampled by Blackbox over the window${target?`, against the ${target} TPS target`:""}.${tickWhy}`,
+      ser.tps,{color:"#5bd68b",unit:" tps",decimals:1,max:target},
+      (s,z)=>{const st=sstat(s);
+        const min=(!z&&D.tps&&has(D.tps.min))?D.tps.min:st.min;
+        const avg=(!z&&D.tps&&has(D.tps.avg))?D.tps.avg:st.avg;
+        return statsInner({now:s[s.length-1],nowSuffix:target?`<span class="mu2">/${target}</span>`:"",
+          min,avg,max:st.max,dec:1,unitLabel:"tps",minCls:(target&&min<0.9*target)?"v-warn":null});});
+  }
+  if(allZero(ser.players)) flatZero.push("Players online");
+  else if(ser.players){
+    card(I.players,"Players online","Concurrent players over the window; per-world detail in Worlds.",
+      ser.players,{color:"#5bd68b",unit:"",decimals:0},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:(!z&&has(D.incident.players))?D.incident.players:s[s.length-1],
+          min:st.min,avg:st.avg,max:st.max,dec:0,unitLabel:"players"});});
+  }
+  {
+    const cl=[["connects",ser.connects,"#62a8ea"],["joins",ser.joins,"#5bd68b"],["leaves",ser.leaves,"#e6b34a"]]
+      .filter(l=>Array.isArray(l[1])&&l[1].length);
+    const nz=cl.filter(l=>!allZero(l[1]));
+    if(cl.length&&!nz.length) flatZero.push("Connections");
+    else if(nz.length){
+      const lines=nz.map(l=>({name:l[0],kind:"count",series:l[1],color:l[2],dec:0}));
+      groupedCard("Connections",lines,"count/interval","",cards,null,I.players);
+    }
+  }
+  if(allZero(ser.entities)) flatZero.push("Entities");
+  else if(ser.entities){
+    card(I.layers,"Entities","Total live entities across all worlds; per-world counts and typed breakdown in Worlds.",
+      ser.entities,{color:"#a98be0",unit:"",decimals:0},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,max:st.max,dec:0,unitLabel:"entities"});});
+  }
+  if(allZero(ser.chunks)) flatZero.push("Chunks");
+  else if(ser.chunks){
+    card(I.layers,"Chunks","Total loaded chunks across all worlds; per-world counts in Worlds.",
+      ser.chunks,{color:"#46cfc0",unit:"",decimals:0},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,max:st.max,dec:0,unitLabel:"chunks"});});
+  }
+  if(allZero(ser.ping)) flatZero.push("Player ping");
+  else if(ser.ping){
+    card(I.clock,"Player ping","Average player round-trip time. Rising ping with stable TPS points at the network, not the server.",
+      ser.ping,{color:"#46cfc0",unit:" ms",decimals:0},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,max:st.max,dec:0,unitLabel:"ms",
+          maxCls:(st.avg>0&&st.max>2*st.avg)?"v-warn":null});});
+  }
+  if(ser.cpu&&ser.cpuJvm){
+    groupedCard("CPU",[
+      {name:"process",kind:"gauge",series:ser.cpuJvm,color:"#46cfc0",dec:1},
+      {name:"machine",kind:"gauge",series:ser.cpu,color:"#62a8ea",dec:1}
+    ],"","%",cards,null,I.cpu);
+  } else if(ser.cpu){
+    card(I.cpu,"Machine CPU",`Host-wide CPU load (jdk.CPULoad)${D.cpu?`. JVM peak ${D.cpu.jvmMax.toFixed(1)}%, JVM average ${D.cpu.jvmAvg.toFixed(1)}%`:""}.`,
+      ser.cpu,{color:"#62a8ea",unit:"%",decimals:1},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,
+          avg:(!z&&D.cpu)?D.cpu.machAvg:st.avg,max:(!z&&D.cpu)?D.cpu.machMax:st.max,dec:1,unitLabel:"%"});});
+  }
+  if(DV.heapG){
+    const mx=(D.heap&&has(D.heap.max)&&D.heap.max>0)?gib(D.heap.max):null;
+    card(I.heap,"Heap used",`Heap usage over the window${mx?` against the ${mx.toFixed(1)} GiB maximum`:""}; the sawtooth is allocate-then-collect.`,
+      DV.heapG,{color:"#e6b34a",unit:" GiB",decimals:1,max:mx},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:(!z&&D.heap)?gib(D.heap.floor):st.min,
+          avg:st.avg,max:(!z&&D.heap)?gib(D.heap.peak):st.max,dec:1,unitLabel:"GiB"});});
+  }
+  if(DV.rssG){
+    card(I.ram,"Process RSS",`Resident set size of the server process (jdk.ResidentSetSize)${D.sys&&has(D.sys.ramTotal)?` · machine has ${gb(D.sys.ramTotal).toFixed(1)} GB RAM`:""}.`,
+      DV.rssG,{color:"#d98b6a",unit:" GB",decimals:1},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,
+          max:(!z&&D.ram)?gb(D.ram.rssPeak):st.max,dec:1,unitLabel:"GB"});});
+  }
+  if(DV.hostMemG){
+    const memTot=(D.sys&&has(D.sys.ramTotal)&&D.sys.ramTotal>0)?gb(D.sys.ramTotal):null;
+    const memLast=DV.hostMemG[DV.hostMemG.length-1];
+    card(I.ram,"Host memory",`Physical memory in use on the whole host, all processes${memTot?`. Currently ${memLast.toFixed(1)} of ${memTot.toFixed(1)} GB (${(100*memLast/memTot).toFixed(0)}%)`:""}.`,
+      DV.hostMemG,{color:"#cc8bd1",unit:" GB",decimals:1},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,max:st.max,dec:1,unitLabel:"GB"});});
+  }
+  if(DV.diskG){
+    const dtot=(D.sys&&D.sys.disk&&has(D.sys.disk.total)&&D.sys.disk.total>0)?gb(D.sys.disk.total):null;
+    card(I.disk,"Disk free",`Free space on the server filesystem${dtot?` of ${dtot.toFixed(1)} GB total`:""}. A full disk stops the JFR recording and bundle writes.`,
+      DV.diskG,{color:"#8a93d8",unit:" GB",decimals:1},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,max:st.max,dec:1,unitLabel:"GB",
+          minCls:(dtot&&st.min<0.05*dtot)?"v-warn":null});});
+  }
+  if(ser.diskWrite||ser.diskRead){
+    const lines=[];
+    if(allZero(ser.diskWrite)) flatZero.push("Disk write");
+    else if(ser.diskWrite) lines.push({name:"write",kind:"gauge",series:ser.diskWrite,color:"#e6b34a",dec:1});
+    if(allZero(ser.diskRead)) flatZero.push("Disk read");
+    else if(ser.diskRead) lines.push({name:"read",kind:"gauge",series:ser.diskRead,color:"#62a8ea",dec:1});
+    if(lines.length) groupedCard("Disk I/O",lines,""," MB/s",cards,null,I.disk);
+  }
+  if(allZero(ser.netOut)) flatZero.push("Network out");
+  else if(ser.netOut){
+    card(I.net,`Network out${D.net?` · ${esc(D.net.iface)}`:""}`,
+      `Outbound throughput (jdk.NetworkUtilization, host-wide per interface)${(D.net&&has(D.net.inAvg))?`. Inbound averaged ${D.net.inAvg.toFixed(1)} Mb/s`:""}.`,
+      ser.netOut,{color:"#a98be0",unit:" Mb/s",decimals:1},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,
+          avg:(!z&&D.net)?D.net.outAvg:st.avg,max:(!z&&D.net)?D.net.outPeak:st.max,dec:1,unitLabel:"Mb/s"});});
+  }
+  if(ser.threads){
+    card(I.threads,"Live threads",
+      D.threadStates?`JVM thread count. At capture: ${Object.entries(D.threadStates).map(([k,v])=>v+" "+k.toLowerCase().replace("_"," ")).join(", ")}.`:"JVM thread count over the window.",
+      ser.threads,{color:"#62a8ea",unit:"",decimals:0},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:(!z&&has(D.threadTotal))?D.threadTotal:s[s.length-1],
+          min:st.min,avg:st.avg,max:st.max,dec:0,unitLabel:"threads"});});
+  }
+  if(allZero(ser.gcPause)) flatZero.push("GC pause");
+  else if(ser.gcPause){
+    card(I.gc,"GC pause",`Longest stop-the-world pause per interval${D.gc?` across ${D.gc.collections} collections (${D.gc.totalPauseMs}ms total)`:""}. Anything under ~50ms is healthy.`,
+      ser.gcPause,{color:"#5bd68b",unit:" ms",decimals:2},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,
+          max:(!z&&D.gc)?D.gc.maxPauseMs:st.max,dec:2,unitLabel:"ms",maxCls:DV.gcHealthy===false?"v-warn":null});});
+  }
+  if(allZero(ser.exceptions)) flatZero.push("Exceptions");
+  else if(ser.exceptions){
+    card(I.warn,"Exceptions thrown","Exceptions per interval. A spike near the incident points at the failing subsystem or mod.",
+      ser.exceptions,{color:"#ef7aa5",unit:"/interval",decimals:0},
+      (s,z)=>{const st=sstat(s);const tot=s.reduce((a,v)=>a+v,0);
+        return statsInner({now:tot,nowLabel:"total",min:st.min,avg:st.avg,max:st.max,dec:0,unitLabel:"/interval",
+          maxCls:(st.avg>0&&st.max>5*st.avg)?"v-warn":null});});
+  }
+
+  const facts=[];
+  if(DV.win) facts.push(`<span class="pill">${I.clock} window <b>${DV.win}</b></span>`);
+  if(DV.samples) facts.push(`<span class="pill">${I.fire} <b>${fmt(DV.samples)}</b> execution samples</span>`);
+  if(has(D.incident.players)&&!ser.players) facts.push(`<span class="pill">${I.players} <b>${D.incident.players}</b> players at capture</span>`);
+  if(has(D.threadTotal)&&!ser.threads) facts.push(`<span class="pill">${I.threads} <b>${D.threadTotal}</b> live threads</span>`);
+  if(D.gc&&!ser.gcPause) facts.push(`<span class="pill">${I.gc} max GC pause <b>${D.gc.maxPauseMs} ms</b></span>`);
+  if(D.gc&&has(D.gc.totalPauseMs)&&has(D.incident.windowSec)&&D.incident.windowSec>0) facts.push(`<span class="pill">${I.gc} GC overhead <b>${(100*D.gc.totalPauseMs/(D.incident.windowSec*1000)).toFixed(1)}%</b></span>`);
+  if(D.sys&&has(D.sys.cpuStealPct)&&D.sys.cpuStealPct>=5) facts.push(`<span class="pill">${I.cpu} CPU steal <b>${D.sys.cpuStealPct.toFixed(1)}%</b></span>`);
+  if(D.sys&&has(D.sys.cpuIowaitPct)&&D.sys.cpuIowaitPct>=5) facts.push(`<span class="pill">${I.cpu} CPU iowait <b>${D.sys.cpuIowaitPct.toFixed(1)}%</b></span>`);
+  if(D.sys&&has(D.sys.oomKills)&&D.sys.oomKills>0) facts.push(`<span class="pill">${I.warn} OOM kills <b>${D.sys.oomKills}</b></span>`);
+  if(D.sys&&has(D.sys.cpuUsageCores)&&D.sys.container&&has(D.sys.container.cpuLimit)&&D.sys.container.cpuLimit>0&&has(D.sys.cpuCores)&&D.sys.container.cpuLimit<D.sys.cpuCores&&(100*D.sys.cpuUsageCores/D.sys.container.cpuLimit)>=80) facts.push(`<span class="pill">${I.cpu} Container CPU <b>${(100*D.sys.cpuUsageCores/D.sys.container.cpuLimit).toFixed(0)}% of limit</b></span>`);
+  if(D.sys&&((has(D.sys.psiCpu)&&D.sys.psiCpu>=10)||(has(D.sys.psiIo)&&D.sys.psiIo>=10)||(has(D.sys.psiMem)&&D.sys.psiMem>=10))) facts.push(`<span class="pill">${I.warn} PSI stall <b>cpu ${(D.sys.psiCpu||0).toFixed(0)}% · io ${(D.sys.psiIo||0).toFixed(0)}% · mem ${(D.sys.psiMem||0).toFixed(0)}%</b></span>`);
+
+  if(!cards.length&&!facts.length&&!flatZero.length) return "";
+  return (facts.length?`<div class="factstrip">${facts.join("")}</div>`:"")
+    +(cards.length?legendHtml()+`<div class="mgrid">${cards.join("")}</div>`:"")
+    +(flatZero.length?`<div class="subnote" style="margin-top:14px">Flat at zero for the whole window (charts hidden): ${flatZero.map(esc).join(", ")}.</div>`:"");
+}
+
+function lineStatText(slice,kind,dec){
+  const st=sstat(slice), f=v=>Number(v).toFixed(autoDec(st.min,st.max,dec));
+  const tot=kind==="count"?slice.reduce((a,v)=>a+v,0):null;
+  return `${tot!=null?`total ${fmt(Math.round(tot))} · `:""}min ${f(st.min)} · avg ${f(st.avg)} · max ${f(st.max)}`;
+}
+function groupedCard(title,lines,kindChip,unit,cards,extra,icon){
+  const single=lines.length===1;
+  const chart=single
+    ? lineChart(lines[0].series,Object.assign({h:170,color:lines[0].color,unit,decimals:lines[0].dec,times:DV.span,marker:DV.incMarker},extra||{}))
+    : lineChart(null,Object.assign({h:170,unit,decimals:1,times:DV.span,marker:DV.incMarker,multi:lines},extra||{}));
+  const cid="ch"+CHART_ID;
+  const off=()=>CHARTS[cid].lineOff||new Set();
+  const sliceL=(a,b)=>lines.map(l=>{const Nn=l.series.length;
+    let j0=Math.max(0,Math.floor(a*(Nn-1))), j1=Math.min(Nn-1,Math.ceil(b*(Nn-1)));
+    if(j1<=j0) j1=Math.min(Nn-1,j0+1);
+    return l.series.slice(j0,j1+1);});
+  const stripHtml=slices=>{
+    if(lines.length>2) return "";
+    return lines.map((l,k)=>off().has(k)?"":`<span class="pml"><b style="color:${l.color}">${esc(l.name)}</b> ${lineStatText(slices[k],l.kind,l.dec)}</span>`)
+      .filter(Boolean).join('<span class="msep">·</span>');
+  };
+  const tipFor=(slices,k)=>`${lines[k].name}: ${lineStatText(slices[k],lines[k].kind,lines[k].dec)}`;
+  const slices0=lines.map(l=>l.series);
+  let strip0;
+  if(single){
+    const l=lines[0];
+    const sb=s=>{const st=sstat(s);
+      const oo={min:st.min,avg:st.avg,max:st.max,dec:l.dec,unitLabel:unit.trim()||null};
+      if(l.kind==="count"){oo.now=s.reduce((a,v)=>a+v,0);oo.nowLabel="total";} else oo.now=s[s.length-1];
+      return statsInner(oo);};
+    strip0=sb(l.series);
+    CHARTS[cid].mkStats=sb; CHARTS[cid].statHtml0=strip0;
+  } else {
+    strip0=stripHtml(slices0);
+    CHARTS[cid].pmUpdate=()=>{
+      const slices=ZOOM?sliceL(ZOOM.a,ZOOM.b):slices0;
+      const stripEl=document.querySelector(`.mstats[data-stats="${cid}"]`);
+      if(stripEl) stripEl.innerHTML=stripHtml(slices);
+      lines.forEach((l,k)=>{const chip=document.querySelector(`[data-pml="${cid}:${k}"]`);
+        if(chip) chip.setAttribute("data-tip",tipFor(slices,k));});
+    };
+  }
+  const legend=single?"":`<div class="pmlegend">${lines.map((l,k)=>`<span class="pmlg" data-pml="${cid}:${k}" data-tip="${esc(tipFor(slices0,k))}"><span class="edot" style="background:${l.color}"></span>${esc(l.name)}</span>`).join(" ")}</div>`;
+  cards.push(`<div class="chartcard mcard"><div class="cth"><span class="ctt"><span class="cic">${icon||I.pulse}</span>${esc(title)}${kindChip?` <span class="st NEUTRAL" style="margin-left:7px">${kindChip}</span>`:""}</span><span class="mstats" data-stats="${cid}">${strip0}</span></div>${legend}${chart}</div>`);
+}
+const CARD_PAL=["#46cfc0","#62a8ea","#a98be0","#ef7aa5","#5bd68b","#e6b34a","#d98b6a","#8a93d8"];
+
+function pluginMetricsHtml(){
+  const pm=(D.pluginMetrics||[]).filter(m=>m&&m.name&&m.series&&m.series.length>=2);
+  if(!pm.length) return "";
+  const order=[], bySys=new Map();
+  pm.forEach(m=>{const sys=String(m.name).split(" ")[0]||String(m.name);
+    if(!bySys.has(sys)){bySys.set(sys,[]);order.push(sys);}
+    bySys.get(sys).push(m);});
+  const scaleOf=m=>{let mx=0;for(const v of m.series){const a=Math.abs(v);if(a>mx)mx=a;}return mx;};
+  const compatible=ms=>{const sc=ms.map(scaleOf).filter(s=>s>0);return sc.length<=1||Math.max(...sc)<=20*Math.min(...sc);};
+  const decOf=s=>s.some(v=>Math.abs(v-Math.round(v))>1e-9)?1:0;
+  const cards=[];
+  const mkCard=(title,metrics)=>{
+    const sysName=title.split(" (")[0];
+    const lines=metrics.map((m,k)=>({
+      name:String(m.name).startsWith(sysName+" ")?String(m.name).slice(sysName.length+1):String(m.name),
+      kind:m.kind==="count"?"count":"gauge",series:m.series,color:CARD_PAL[k%CARD_PAL.length],dec:decOf(m.series)}));
+    const kinds=[...new Set(lines.map(l=>l.kind))];
+    const kindChip=kinds.length>1?"count + gauge":(kinds[0]==="count"?"count/interval":"gauge");
+    groupedCard(title,lines,kindChip,"",cards);
+  };
+  order.forEach(sys=>{
+    const ms=bySys.get(sys);
+    if(ms.length===1){mkCard(String(ms[0].name),ms);return;}
+    if(compatible(ms)){mkCard(sys,ms);return;}
+    const counts=ms.filter(m=>m.kind==="count"), gauges=ms.filter(m=>m.kind!=="count");
+    if(counts.length&&gauges.length){
+      mkCard(sys+" (counts)",counts);
+      mkCard(sys+" (gauges)",gauges);
+    } else mkCard(sys,ms);
+  });
+  if(!cards.length) return "";
+  return `<p class="lead">Numeric series reported by installed plugins through the Blackbox API, on the same time axis as every other chart.</p>${legendHtml()}<div class="mgrid">${cards.join("")}</div>`;
+}
+
+function engineHtml(){
+  const ts=(D.tickSystems||[]).filter(r=>r&&r.length>=6);
+  const series=(D.tickSeries||[]).filter(s=>s&&s.name&&s.series&&s.series.length>=2);
+  if(!ts.length&&!series.length){
+    return "";
+  }
+  const BUDGET=(D.tps&&D.tps.target>0)?1000/D.tps.target:100/3;
+  const parts=[];
+  if(series.length){
+    const byWorld=new Map(), order=[];
+    series.forEach(s=>{
+      const at=String(s.name).lastIndexOf(" @ ");
+      const world=at>=0?String(s.name).slice(at+3):"(unknown world)";
+      const sys=at>=0?String(s.name).slice(0,at):String(s.name);
+      if(!byWorld.has(world)){byWorld.set(world,[]);order.push(world);}
+      byWorld.get(world).push({sys,series:s.series});
+    });
+    const cards=[];
+    order.forEach(world=>{
+      let ms=byWorld.get(world);
+      if(ms.length>6){
+        ms=[...ms].sort((a,b)=>sstat(b.series).avg-sstat(a.series).avg).slice(0,6);
+      }
+      const lines=ms.map((m,k)=>({name:m.sys,kind:"gauge",series:m.series,color:CARD_PAL[k%CARD_PAL.length],dec:1}));
+      groupedCard(worldLabel(world),lines,"ms per tick"," ms",cards,{gcIdx:true});
+    });
+    parts.push(`<div class="mgrid">${cards.join("")}</div>`);
+  }
+  if(ts.length){
+    const sorted=[...ts].sort((a,b)=>b[2]-a[2]);
+    const rows=sorted.map(r=>{
+      const [sys,world,avg1,max1,avg5,max5]=r;
+      const pctB=100*avg1/BUDGET;
+      const cls=pctB>100?"v-bad":(pctB>50?"v-warn":"pct");
+      const barCol=pctB>100?"var(--bad)":(pctB>50?"var(--warn)":"var(--good)");
+      return `<tr><td class="nm"><span class="tnc2" style="max-width:280px" data-tipov="${esc(sys)}">${esc(sys)}</span></td><td class="pkg" data-sval="${esc(world)}"><span class="tnc2" style="max-width:170px" data-tipov="${esc(world)}">${esc(worldLabel(world))}</span></td><td class="r" data-num="${avg1}">${Number(avg1).toFixed(2)}</td><td class="r" data-num="${max1}">${Number(max1).toFixed(2)}</td><td class="r" data-num="${avg5}">${Number(avg5).toFixed(2)}</td><td class="r" data-num="${max5}">${Number(max5).toFixed(2)}</td><td class="r" data-num="${pctB.toFixed(2)}"><span class="bbar"><i style="width:${Math.min(100,pctB).toFixed(0)}%;background:${barCol}"></i></span><span class="${cls}">${pctB.toFixed(1)}%</span></td></tr>`;
+    }).join("");
+    parts.push(`<div class="tscroll" style="margin-top:${series.length?"16px":"0"}"><div class="tcap"><table class="sortable" id="es-t"><thead><tr>${thc("System","Engine ECS system",{sort:"text"})}${thc("World","World whose Store ticks this system",{sort:"text"})}${thc("avg 1m","Average tick cost, last minute (ms)",{sort:"num",r:true,def:"desc"})}${thc("max 1m","Worst tick, last minute (ms)",{sort:"num",r:true})}${thc("avg 5m","Average tick cost, last 5 minutes (ms)",{sort:"num",r:true})}${thc("max 5m","Worst tick, last 5 minutes (ms)",{sort:"num",r:true})}${thc("% of budget","Share of the "+BUDGET.toFixed(1)+" ms tick budget (avg 1m)",{sort:"num",r:true})}</tr></thead><tbody>${rows}</tbody></table></div></div>`);
+  }
+  if(D.tickSystemsNote) parts.push(`<div class="subnote" id="tsnote" style="margin-top:10px">${esc(D.tickSystemsNote)}</div>`);
+  const lead=`<p class="lead">Per-system tick wall time, measured by the engine itself for every system tick. This is exact time, not sampling: a system blocking on locks or IO shows its full cost here even when CPU profiling misses it.</p>`;
+  return lead+(series.length?legendHtml(true):"")+parts.join("");
+}
+
+function flameHtml(){
+  if(!D.flame||!Array.isArray(D.flame)||!Array.isArray(D.flame[2])||!D.flame[2].length) return "";
+  const sw=(o,c,l)=>`<span class="flg flgtog" data-own="${o}" data-tip="show or hide ${l} frames"><span class="fsw" style="background:${c}"></span>${l}</span>`;
+  return `<p class="lead">Every execution sample's full stack, grouped by thread at the top level. Width is sample share, depth is the call path.</p>
+  <div class="flamebar"><span class="srch"><span class="si">${I.search}</span><input id="flamefilter" placeholder="filter frames…"></span><span class="flamelg">${sw(1,"hsl(205,54%,46%)","engine")}${sw(2,"hsl(33,80%,50%)","mod")}${sw(3,"hsl(220,5%,46%)","JDK")}</span><span class="fcrumb" id="flamecrumb" style="display:none"></span><span class="fnote" id="flamenote"></span></div>
+  <canvas id="flamecv" class="bbtipcv" height="520"></canvas>`;
+}
+function initFlame(){
+  const cv=$("#flamecv"); if(!cv||!D.flame) return;
+  const ROW=18, AROW=10, MAXH=520;
+  const parse=n=>({name:String(n[0]),samples:n[1],children:(n[2]||[]).map(parse),owner:n[3]|0});
+  const root=parse(D.flame);
+  let path=[root];
+  let filter="";
+  let cells=[];
+  const ownOff={};
+  const hue=name=>{
+    const cls=String(name).split(".")[0]||String(name);
+    let h=0; for(let i=0;i<cls.length;i++) h=(h*31+cls.charCodeAt(i))>>>0;
+    return h%360;
+  };
+  const OWNER_HUE={0:265,1:205,2:33,3:220}, OWNER_SAT={0:16,1:54,2:80,3:5};
+  const colorOf=(node,anc)=>{
+    const o=node.owner|0, j=hue(node.name)%24-12;
+    const s=anc?Math.max(8,OWNER_SAT[o]-20):OWNER_SAT[o];
+    const l=anc?34:(o===0?30:(o===2?50:46));
+    return `hsl(${OWNER_HUE[o]+j},${s}%,${l}%)`;
+  };
+  function render(){
+    const cssW=cv.clientWidth||(cv.parentElement?cv.parentElement.clientWidth:0); if(!cssW) return;
+    const dpr=devicePixelRatio||1;
+    const cur=path[path.length-1];
+    let depth=0;
+    (function dd(n,d){const hid=d>0&&!!ownOff[n.owner];if(!hid&&d>depth)depth=d;const cd=hid?d:d+1;if(cd<64)n.children.forEach(c=>dd(c,cd));})(cur,0);
+    const ancRows=path.length-1;
+    const availRows=Math.max(3,Math.floor((MAXH-ancRows*AROW)/ROW));
+    const shownDepth=Math.min(depth+1,availRows);
+    const cut=depth+1-shownDepth;
+    const cssH=ancRows*AROW+shownDepth*ROW;
+    cv.style.height=cssH+"px";
+    cv.width=Math.round(cssW*dpr); cv.height=Math.round(cssH*dpr);
+    const ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,cssW,cssH);
+    ctx.font="10px ui-monospace,Menlo,monospace"; ctx.textBaseline="middle";
+    cells=[];
+    for(let a=0;a<ancRows;a++){
+      const nd=path[a], y=a*AROW;
+      ctx.globalAlpha=.55; ctx.fillStyle=colorOf(nd,true);
+      ctx.fillRect(0,y,cssW,AROW-1); ctx.globalAlpha=1;
+      cells.push({x:0,y,w:cssW,h:AROW-1,node:nd,kind:"anc",pathIdx:a});
+    }
+    const y0=ancRows*AROW;
+    const matches=n=>filter&&String(n.name).toLowerCase().includes(filter);
+    const draw=(n,x,w,d)=>{
+      if(d>=shownDepth||w<1) return;
+      const y=y0+d*ROW;
+      const hidden=d>0&&!!ownOff[n.owner];
+      if(!hidden){
+        const dim=filter&&!matches(n);
+        ctx.globalAlpha=dim?.22:1;
+        ctx.fillStyle=colorOf(n,false);
+        ctx.fillRect(x,y,Math.max(w-0.6,0.4),ROW-1);
+        if(w>40){
+          ctx.fillStyle=dim?"rgba(214,218,226,.4)":"rgba(10,11,14,.85)";
+          ctx.save();ctx.beginPath();ctx.rect(x+3,y,w-6,ROW);ctx.clip();
+          ctx.fillText(String(n.name),x+4,y+ROW/2);
+          ctx.restore();
+        }
+        ctx.globalAlpha=1;
+        cells.push({x,y,w,h:ROW-1,node:n,kind:"cell"});
+      }
+      const cd=hidden?d:d+1;
+      let cx=x, childSum=0;
+      n.children.forEach(c=>{childSum+=c.samples;});
+      n.children.forEach(c=>{
+        const cw=w*c.samples/(n.samples||1);
+        draw(c,cx,cw,cd);
+        cx+=cw;
+      });
+      const gapN=n.samples-childSum;
+      if(n.children.length&&gapN>0&&!hidden&&cd<shownDepth){
+        const gw=w*gapN/(n.samples||1);
+        if(gw>=1){
+          const gy=y0+cd*ROW;
+          ctx.globalAlpha=.06; ctx.fillStyle="#ffffff";
+          ctx.fillRect(cx,gy,Math.max(gw-0.6,0.4),ROW-1); ctx.globalAlpha=1;
+          cells.push({x:cx,y:gy,w:gw,h:ROW-1,node:null,kind:"gap",gapN});
+        }
+      }
+    };
+    draw(cur,0,cssW,0);
+    const note=$("#flamenote");
+    if(note) note.textContent=cut>0?`+${cut} deeper level${cut===1?"":"s"}`:"";
+    const crumb=$("#flamecrumb");
+    if(crumb){
+      if(path.length>1){crumb.style.display="";crumb.textContent="⟲ "+cur.name+" · reset";}
+      else crumb.style.display="none";
+    }
+    if(typeof markThreadGroup==="function") markThreadGroup(path.length>=2?path[1].name:null);
+  }
+  function cellAt(mx,my){
+    for(let i=cells.length-1;i>=0;i--){
+      const c=cells[i];
+      if(mx>=c.x&&mx<=c.x+c.w&&my>=c.y&&my<=c.y+c.h) return c;
+    }
+    return null;
+  }
+  cv.addEventListener("mousemove",e=>{
+    const r=cv.getBoundingClientRect();
+    const c=cellAt(e.clientX-r.left,e.clientY-r.top);
+    if(!c){hideTip();cv.style.cursor="default";return;}
+    cv.style.cursor="pointer";
+    let txt;
+    if(c.kind==="gap") txt=`pruned frames (${fmt(c.gapN)} samples)`;
+    else txt=`${c.node.name} · ${fmt(c.node.samples)} samples · ${pct(c.node.samples,root.samples||1).toFixed(2)}% of total · ${pct(c.node.samples,path[path.length-1].samples||1).toFixed(1)}% of view`;
+    TIP.textContent=txt; TIP.style.display="block";
+    const tw=TIP.offsetWidth, th=TIP.offsetHeight, m=8;
+    let x=e.clientX+12; if(x+tw>innerWidth-m)x=e.clientX-tw-12;
+    let y=e.clientY+16; if(y+th>innerHeight-m)y=e.clientY-th-12;
+    TIP.style.left=Math.max(m,x)+"px"; TIP.style.top=Math.max(m,y)+"px";
+  });
+  cv.addEventListener("mouseleave",()=>hideTip());
+  function findPath(target,node,acc){
+    if(node===target) return acc.concat(node);
+    for(const c of node.children){const r=findPath(target,c,acc.concat(node));if(r)return r;}
+    return null;
+  }
+  function zoomTo(node){
+    const p=findPath(node,root,[]);
+    if(p){path=p;render();cv.scrollIntoView({block:"nearest"});}
+  }
+  function jumpToBest(){
+    let best=null;
+    (function walk(n){if(String(n.name).toLowerCase().includes(filter)&&(!best||n.samples>best.samples))best=n;n.children.forEach(walk);})(root);
+    if(best) zoomTo(best);
+  }
+  cv.addEventListener("click",e=>{
+    const r=cv.getBoundingClientRect();
+    const c=cellAt(e.clientX-r.left,e.clientY-r.top);
+    if(!c||!c.node) return;
+    if(c.kind==="anc"){path=path.slice(0,c.pathIdx+1);render();return;}
+    if(c.node!==path[path.length-1]) zoomTo(c.node);
+  });
+  const fin=$("#flamefilter");
+  function resetFlame(){ path=[root]; filter=""; if(fin) fin.value=""; render(); }
+  cv.addEventListener("dblclick",resetFlame);
+  const crumbEl=$("#flamecrumb");
+  if(crumbEl) crumbEl.addEventListener("click",resetFlame);
+  if(fin){
+    let fTimer=null;
+    fin.addEventListener("input",()=>{
+      filter=fin.value.trim().toLowerCase(); render();
+      clearTimeout(fTimer);
+      if(filter) fTimer=setTimeout(jumpToBest,220);
+    });
+    fin.addEventListener("keydown",e=>{ if(e.key==="Enter"&&filter) jumpToBest(); });
+  }
+  document.querySelectorAll(".flamelg .flgtog").forEach(el=>el.addEventListener("click",()=>{
+    const o=+el.dataset.own; ownOff[o]=!ownOff[o]; el.classList.toggle("off",ownOff[o]); render();
+  }));
+  flameRender=render;
+  window.BBFLAME={cells:()=>cells,zoomTo,reset:resetFlame,rootNode:()=>path[path.length-1],tree:root,
+    setFilter:v=>{filter=String(v).trim().toLowerCase();if(fin)fin.value=v;render();}};
+  render();
+}
+
+function threadTimelineHtml(){
+  const tt=D.threadTimeline;
+  if(!tt||!tt.length) return "";
+  const lg=[["RUNNABLE","#5bd68b"],["WAITING","#62a8ea"],["TIMED WAITING","#a98be0"],["BLOCKED","#f0626b"]]
+    .map(([k,c])=>`<span><span class="edot" style="background:${c}"></span>${k}</span>`).join(" ");
+  const hasFlame=!!(D.flame&&Array.isArray(D.flame)&&Array.isArray(D.flame[2])&&D.flame[2].length);
+  const labels=tt.map(t=>`<div class="ttlabel"${hasFlame?` data-flamegroup="${esc(threadGroup(t.name))}"`:""} data-tipov="${esc(t.name)}">${esc(t.name)}</div>`).join("");
+  const ttCnt=(has(D.threadTotal)&&D.threadTotal>tt.length)?`top ${tt.length} of ${D.threadTotal} threads · `:"";
+  return `<div class="ttlegend">${lg}<span style="margin-left:auto" class="pkg">${ttCnt}modal sampled state per interval; gaps had no samples</span></div>
+  <div class="ttwrap"><div class="ttlabels">${labels}</div><div class="ttcv"><canvas id="ttcanvas" class="bbtipcv"></canvas></div></div>`;
+}
+function initThreadTimeline(){
+  const cv=$("#ttcanvas"); if(!cv||!D.threadTimeline||!D.threadTimeline.length) return;
+  const tt=D.threadTimeline, ROWH=14;
+  const SCOL={1:"#5bd68b",2:"#62a8ea",3:"#a98be0",4:"#f0626b"};
+  const SNAME={0:"no samples",1:"RUNNABLE",2:"WAITING",3:"TIMED_WAITING",4:"BLOCKED"};
+  let geo=null;
+  function render(){
+    const holder=cv.parentElement;
+    const cssW=holder?holder.clientWidth-16:0; if(cssW<=0) return;
+    const cssH=tt.length*ROWH;
+    const dpr=devicePixelRatio||1;
+    cv.style.height=cssH+"px";
+    cv.width=Math.round(cssW*dpr); cv.height=Math.round(cssH*dpr);
+    const ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,cssW,cssH);
+    const N=tt[0].states.length;
+    const za=ZOOM?ZOOM.a:0, zb=ZOOM?ZOOM.b:1;
+    let i0=Math.max(0,Math.floor(za*(N-1))), i1=Math.min(N-1,Math.ceil(zb*(N-1)));
+    if(i1<=i0) i1=Math.min(N-1,i0+1);
+    const n=i1-i0+1, cw=cssW/n;
+    tt.forEach((t,r)=>{
+      const y=r*ROWH;
+      for(let i=0;i<n;i++){
+        const s=t.states[i0+i];
+        if(!s) continue;
+        ctx.fillStyle=SCOL[s]||"#9aa1ad";
+        ctx.fillRect(i*cw,y+1,Math.max(cw-0.4,0.5),ROWH-3);
+      }
+    });
+    if(INCHL&&has(D.incident.markerFrac)){
+      const gf=clamp01(D.incident.markerFrac);
+      if(gf>=za-1e-9&&gf<=zb+1e-9){
+        const x=Math.round(((gf-za)/((zb-za)||1))*cssW)+0.5;
+        ctx.setLineDash([3,3]); ctx.strokeStyle="#f0626b"; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,cssH); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+    geo={i0,i1,n,cw,cssW,cssH,N};
+  }
+  cv.addEventListener("mousemove",e=>{
+    if(!geo){hideTip();return;}
+    const r=cv.getBoundingClientRect();
+    const mx=e.clientX-r.left,my=e.clientY-r.top;
+    const row=Math.floor(my/ROWH), col=Math.floor(mx/geo.cw);
+    if(row<0||row>=tt.length||col<0||col>=geo.n){hideTip();cv.style.cursor="default";return;}
+    cv.style.cursor="pointer";
+    const idx=geo.i0+col, s=tt[row].states[idx]||0;
+    const ck=globalClock(idx/((geo.N-1)||1));
+    TIP.textContent=`${tt[row].name} · ${SNAME[s]||s}${ck?" · "+ck:""}`;
+    TIP.style.display="block";
+    const tw=TIP.offsetWidth, th=TIP.offsetHeight, m=8;
+    let x=e.clientX+12; if(x+tw>innerWidth-m)x=e.clientX-tw-12;
+    let y=e.clientY+16; if(y+th>innerHeight-m)y=e.clientY-th-12;
+    TIP.style.left=Math.max(m,x)+"px"; TIP.style.top=Math.max(m,y)+"px";
+  });
+  cv.addEventListener("mouseleave",()=>hideTip());
+  cv.addEventListener("click",e=>{
+    const r=cv.getBoundingClientRect();
+    const row=Math.floor((e.clientY-r.top)/ROWH);
+    if(row>=0&&row<tt.length&&typeof flameFocusGroup==="function") flameFocusGroup(threadGroup(tt[row].name));
+  });
+  ttRender=render;
+  window.BBTT={render,geo:()=>geo};
+  render();
+}
+
+function cpuSubBars(rows){
+  const T=DV.samples;
+  if(!rows||!rows.length) return `<div class="pkg" style="padding:6px 2px">no samples</div>`;
+  const mx=Math.max(...rows.map(s=>s[1]));
+  return rows.map(s=>{const p=T?pct(s[1],T):0;return `<div class="wbar"><div class="wn"><span class="tnc" data-tipov="${esc(s[0])}">${esc(s[0])}</span></div><div class="wt"><div class="wf" style="width:${(100*s[1]/Math.max(1,mx)).toFixed(1)}%"></div></div><div class="wv">${fmt(s[1])} · ${p.toFixed(1)}%</div></div>`;}).join("");
+}
+function cpuModBars(rows,rich){
+  const T=DV.samples;
+  if(!rows||!rows.length) return `<div class="pkg" style="padding:6px 2px">no samples</div>`;
+  const mx=Math.max(...rows.map(m=>m[1]));
+  return rows.map(m=>{
+    const mod=m[0],samp=m[1],p=T?pct(samp,T):0,meth=rich?m[2]:null,thr=rich?m[3]:null;
+    const bar=`<div class="wbar"><div class="wn"><span style="min-width:0"><span class="tnc" data-tipov="${esc(mod)}">${esc(mod)}</span>${meth?`<div class="modmeth" data-tipov="${esc(meth)}">${esc(leafName(meth))}</div>`:""}</span></div><div class="wt"><div class="wf" style="width:${(100*samp/Math.max(1,mx)).toFixed(1)}%"></div></div><div class="wv">${fmt(samp)} · ${p.toFixed(1)}%</div></div>`;
+    const tt=(thr&&thr.length)?thr.map(t=>`${esc(t[0])} ${(100*t[1]/Math.max(1,samp)).toFixed(0)}%`).join(" · "):"";
+    return tt?`<div>${bar}<div class="modthr" data-tipov="${tt}">on ${tt}</div></div>`:`<div>${bar}</div>`;
+  }).join("");
+}
+function setCpuWorld(w){
+  const sub=document.getElementById("cpuSub"), mod=document.getElementById("cpuMod");
+  if(!sub&&!mod) return;
+  document.querySelectorAll("[data-cpuworld]").forEach(c=>c.classList.toggle("on",c.dataset.cpuworld===w));
+  if(w==="*"){
+    if(sub) sub.innerHTML=cpuSubBars(D.subsystems||[]);
+    if(mod) mod.innerHTML=cpuModBars(D.modCpu||[],true);
+  } else {
+    const wc=(D.cpuByWorld||[]).find(x=>x.world===w)||{};
+    if(sub) sub.innerHTML=cpuSubBars(wc.subsystems||[]);
+    if(mod) mod.innerHTML=cpuModBars(wc.mods||[],false);
+  }
+  if(typeof pruneBarTips==="function") pruneBarTips();
+}
+function allocBarsT(items,nowrap,tot){
+  if(!items||!items.length) return `<div class="pkg" style="padding:6px 2px">no samples</div>`;
+  const mx=Math.max(...items.map(i=>i[1]));
+  return items.map(i=>`<div class="wbar"><div class="wn"><span${nowrap?' class="tnc"':""} data-tipov="${esc(String(i[0]))}">${esc(String(i[0]))}</span></div><div class="wt"><div class="wf al" style="width:${(100*i[1]/Math.max(1,mx)).toFixed(1)}%"></div></div><div class="wv">${fmtBytes(i[1])} · ${pct(i[1],tot).toFixed(1)}%</div></div>`).join("");
+}
+function setAllocWorld(w){
+  const sub=document.getElementById("allocSub"), mod=document.getElementById("allocMod");
+  if((!sub&&!mod)||!D.alloc) return;
+  document.querySelectorAll("[data-allocworld]").forEach(c=>c.classList.toggle("on",c.dataset.allocworld===w));
+  const tot=(has(D.alloc.total)&&D.alloc.total>0?D.alloc.total:(D.alloc.bySubsystem||[]).reduce((a,s)=>a+s[1],0))||1;
+  let bs,bm;
+  if(w==="*"){ bs=D.alloc.bySubsystem||[]; bm=D.alloc.byMod||[]; }
+  else { const wc=(D.alloc.byWorld||[]).find(x=>x.world===w)||{}; bs=wc.bySubsystem||[]; bm=wc.byMod||[]; }
+  if(sub) sub.innerHTML=allocBarsT(bs,false,tot);
+  if(mod) mod.innerHTML=allocBarsT(bm,true,tot);
+  if(typeof pruneBarTips==="function") pruneBarTips();
+}
+function cpuHtml(){
+  const ser=D.series||{}, T=DV.samples;
+  const parts=[];
+  let lead="";
+  if(D.cpu&&T&&DV.lowLoad){
+    lead=`<p class="lead">Host machine CPU averaged <b>${D.cpu.machAvg.toFixed(1)}%</b> (peak ${D.cpu.machMax.toFixed(1)}%)${D.sys&&has(D.sys.hwThreads)?` across ${D.sys.hwThreads} threads`:""}. The server was effectively idle over the window (<b>${fmt(T)}</b> execution samples), so per-thread CPU attribution is not meaningful.</p>`;
+  } else if(D.cpu&&DV.topWorld&&T){
+    lead=`<p class="lead">Host machine CPU averaged <b>${D.cpu.machAvg.toFixed(1)}%</b> (peak ${D.cpu.machMax.toFixed(1)}%)${D.sys&&has(D.sys.hwThreads)?` across ${D.sys.hwThreads} threads`:""}, but the load is not spread evenly. The busiest world thread, <span class="hot">${esc(worldLabel(DV.topWorld.name))}</span>, holds <b>${pct(DV.topWorld.samples,T).toFixed(0)}%</b> of all samples.</p>`;
+  }
+  const cards=[];
+  if(ser.cpu){
+    const cpuMax=Math.max(5,Math.ceil(Math.max(...ser.cpu)/5)*5);
+    if(ser.cpuJvm){
+      const lines=[{name:"machine",series:ser.cpu,color:"#62a8ea",dec:1},{name:"process",series:ser.cpuJvm,color:"#46cfc0",dec:1}];
+      const chart=lineChart(null,{h:195,max:cpuMax,unit:"%",decimals:1,times:DV.span,marker:DV.incMarker,multi:lines});
+      const cid="ch"+CHART_ID;
+      const tips=["Host-wide CPU load across all processes (jdk.CPULoad)","CPU used by the server JVM process alone"];
+      const legend=`<div class="pmlegend">${lines.map((l,k)=>`<span class="pmlg" data-pml="${cid}:${k}" data-tip="${esc(tips[k])}"><span class="edot" style="background:${l.color}"></span>${esc(l.name)}</span>`).join(" ")}</div>`;
+      cards.push(`<div class="chartcard"><div class="cth"><span class="ctt">CPU over capture window</span><span class="ctm">${DV.span?esc(DV.span.from)+" → "+esc(DV.span.to)+" · ":""}${D.cpu?`machine avg ${D.cpu.machAvg.toFixed(1)}% · process avg ${D.cpu.jvmAvg.toFixed(1)}%`:""}</span></div>${legend}${chart}</div>`);
+    } else {
+      cards.push(`<div class="chartcard"><div class="cth"><span class="ctt">Machine CPU over capture window</span><span class="ctm">${DV.span?esc(DV.span.from)+" → "+esc(DV.span.to)+" · ":""}avg ${D.cpu.machAvg.toFixed(1)}% · peak ${D.cpu.machMax.toFixed(1)}%</span></div>${lineChart(ser.cpu,{h:195,color:"#62a8ea",max:cpuMax,unit:"%",decimals:1,times:DV.span,marker:DV.incMarker})}</div>`);
+    }
+  }
+  const sampled=DV.ranked;
+  if(sampled.length&&T){
+    const wmax=sampled[0].samples;
+    const bars=DV.worlds.filter(w=>has(w.samples)).map(w=>{
+      const p=pct(w.samples,T), ic=w.stalled?I.warn:I.globe, lbl=worldLabel(w.name);
+      return `<div class="wbar${w.stalled?' stall':''}"><div class="wn">${ic}<span data-tipov="${esc(w.name)}">${esc(lbl)}</span></div><div class="wt"><div class="wf" style="width:${(100*w.samples/Math.max(1,wmax)).toFixed(1)}%"></div></div><div class="wv">${fmt(w.samples)} · ${p.toFixed(1)}%</div></div>`;
+    }).join("");
+    cards.push(`<div class="chartcard"><div class="cth"><span class="ctt">CPU samples by world thread</span><span class="ctm">${fmt(T)} total</span></div><div class="wbars">${bars}</div></div>`);
+  }
+  if(!cards.length&&!(D.subsystems&&D.subsystems.length)) return "";
+  parts.push(cards.length===2?`<div class="charts2">${cards.join("")}</div>`:cards.join(""));
+  if(Array.isArray(D.worldTps)&&D.worldTps.length){
+    const all=D.worldTps.filter(w=>w&&w.name&&w.series&&w.series.length>=2);
+    const wt=all.slice(0,8);
+    if(wt.length){
+      const lines=wt.map((w,k)=>({name:shortWorld(w.name),series:w.series,color:CARD_PAL[k%CARD_PAL.length],dec:1}));
+      const chart=lineChart(null,{h:195,unit:" tps",decimals:1,times:DV.span,marker:DV.incMarker,multi:lines});
+      const cid="ch"+CHART_ID;
+      const legend=`<div class="pmlegend">${wt.map((w,k)=>`<span class="pmlg" data-pml="${cid}:${k}" data-tip="${esc(w.name)}"><span class="edot" style="background:${lines[k].color}"></span>${esc(lines[k].name)}</span>`).join(" ")}</div>`;
+      const more=all.length>wt.length?` · top ${wt.length} of ${all.length} by CPU; all worlds in the Worlds table`:"";
+      parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Tick rate by world</span><span class="ctm">${wt.length} world${wt.length===1?"":"s"}${(D.tps&&has(D.tps.target))?" · target "+D.tps.target+" tps":""}${more}</span></div>${legend}${chart}</div>`);
+    }
+  }
+  if(((D.subsystems&&D.subsystems.length)||(D.modCpu&&D.modCpu.length))&&T){
+    const worlds=(D.cpuByWorld||[]).filter(w=>w.samples>0);
+    if(worlds.length>1){
+      parts.push(`<div class="tbar wsel"><span class="wsl">scope</span><span class="chip tog on" data-cpuworld="*">all worlds</span>`
+        +worlds.map(w=>`<span class="chip tog" data-cpuworld="${esc(w.world)}">${esc(worldLabel(w.world))} · ${pct(w.samples,T).toFixed(0)}%</span>`).join("")+`</div>`);
+    }
+    if(D.subsystems&&D.subsystems.length)
+      parts.push(`<div class="chartcard" style="margin-top:12px"><div class="cth"><span class="ctt">Where CPU goes, by engine subsystem</span><span class="ctm">classified by deepest stack frame</span></div><div class="wbars" id="cpuSub"></div></div>`);
+    if(D.modCpu&&D.modCpu.length)
+      parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Where CPU goes, by mod</span><span class="ctm">samples touching each mod's code</span></div><div class="wbars" id="cpuMod"></div></div>`);
+  }
+  return lead+(ser.cpu?legendHtml():"")+parts.join("");
+}
+
+function methodsHtml(){
+  const hm=D.hotMethods||[];
+  if(!hm.length) return "";
+  const T=DV.samples;
+  const rows=hm.map((m,i)=>{
+    const p=T?pct(m[0],T):null;
+    return `<tr><td class="rank">${i+1}</td><td class="mcell" data-sval="${esc(m[1])}"><div class="mname"><span class="exp">▸</span>${splitMethod(m[1])}</div>${pathHtml(m[2])}</td><td class="r" data-num="${m[0]}">${fmt(m[0])}</td><td class="r"><span class="pct">${p!=null?p.toFixed(2)+"%":"·"}</span></td></tr>`;
+  }).join("");
+  return `<p class="lead">Leaf-frame aggregation over <b>${T?fmt(T):"all"}</b> execution samples from all threads.${DV.topMethod&&T?` The top frame is <code class="mono" style="color:var(--violet)">${esc(leafName(DV.topMethod[1]))}</code> at <b>${pct(DV.topMethod[0],T).toFixed(2)}%</b> of samples.`:""}</p>
+  <div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter methods…" data-filter="meth-t"></span><span class="chip">top ${hm.length}</span><span class="count" data-count="meth-t">${hm.length} rows</span></div>
+  <div class="tscroll"><div class="tcap"><table class="sortable" id="meth-t"><thead><tr>${thc("#","Rank by sample count",{r:true})}${thc("Method","The most-sampled (leaf) method.",{sort:"text"})}${thc("Samples","Execution samples in which this was the leaf frame",{sort:"num",r:true,def:"desc"})}${thc("Self&nbsp;%","Share of all execution samples",{sort:"num",r:true})}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function markThreadGroup(name){
+  document.querySelectorAll("#th-t tbody tr, #pool-t tbody tr").forEach(tr=>{
+    const link=tr.querySelector("[data-flamegroup]");
+    tr.classList.toggle("thsel", !!name&&!!link&&link.getAttribute("data-flamegroup")===name);
+  });
+  document.querySelectorAll(".ttlabels [data-flamegroup]").forEach(el=>{
+    el.classList.toggle("thsel", !!name&&el.getAttribute("data-flamegroup")===name);
+  });
+}
+function threadGroup(name){
+  if(name==null) return "(unknown thread)";
+  let i=name.length-1;
+  while(i>=0&&name[i]>="0"&&name[i]<="9") i--;
+  if(i<name.length-1&&i>=0&&(name[i]==="-"||name[i]==="#")) return name.slice(0,i);
+  return name;
+}
+function flameFocusGroup(g){
+  const F=window.BBFLAME; if(!F||!F.tree) return;
+  const sec=document.getElementById("flame"); if(sec) sec.classList.remove("collapsed");
+  const node=(F.tree.children||[]).find(c=>c.name===g);
+  if(node) F.zoomTo(node); else F.reset();
+  if(sec) sec.scrollIntoView({behavior:"smooth",block:"start"});
+  requestAnimationFrame(()=>{ if(flameRender) flameRender(); });
+}
+function threadMethodsHtml(methods,thSamples){
+  if(!methods||!methods.length) return "";
+  const items=methods.map(m=>{
+    const mp=thSamples?pct(m[1],thSamples):null;
+    return `<div class="pf"><span class="arr">•</span>${shortMethod(m[0])}<span class="thmn">${fmt(m[1])}${mp!=null?` · ${mp.toFixed(0)}%`:""}</span></div>`;
+  }).join("");
+  return `<div class="mpath" hidden><span class="plab">top methods on this thread</span>${items}</div>`;
+}
+function poolSummaryHtml(ht,T){
+  const groups={};
+  ht.forEach(t=>{const g=threadGroup(t[2]); const e=groups[g]||(groups[g]={s:0,n:0}); e.s+=t[0]; e.n++;});
+  const all=Object.entries(groups).filter(([,v])=>v.n>=2).sort((a,b)=>b[1].s-a[1].s);
+  const minShare=T?T*0.003:0;
+  let pools=all.filter(([,v])=>v.s>=minShare).slice(0,12);
+  if(!pools.length&&all.length) pools=all.slice(0,1);
+  if(!pools.length) return "";
+  const more=all.length-pools.length;
+  const max=pools[0][1].s||1;
+  const rows=pools.map(([g,v])=>{
+    const p=T?pct(v.s,T):null;
+    return `<tr><td class="nm"><span class="thlink" data-flamegroup="${esc(g)}" data-tip="Focus this pool in the flame graph">${esc(g)}</span></td><td class="r" data-num="${v.n}">${v.n}</td><td class="r" data-num="${v.s}">${fmt(v.s)}</td><td class="r"><span class="bbar"><i style="width:${(100*v.s/max).toFixed(0)}%;background:var(--blue)"></i></span><span class="pct">${p!=null?p.toFixed(1)+"%":"·"}</span></td></tr>`;
+  }).join("");
+  const note=more>0?`<div class="subnote" style="margin-top:4px">+${more} smaller pool${more===1?"":"s"} below 0.3% not shown</div>`:"";
+  return `<div class="card" style="margin-bottom:14px"><h3><span class="ic" style="color:var(--blue)">${I.threads}</span> Thread pools (aggregated)</h3>
+  <div class="subnote">Worker pools collapsed by name; samples summed across each pool's threads.</div>
+  <div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter pools…" data-filter="pool-t"></span><span class="count" data-count="pool-t">${pools.length} rows</span></div>
+  <div class="tscroll"><table class="sortable" id="pool-t"><thead><tr>${thc("Pool / group","Threads sharing a base name",{sort:"text"})}${thc("Threads","Number of threads in the group",{sort:"num",r:true})}${thc("Samples","Execution samples summed across the group",{sort:"num",r:true,def:"desc"})}${thc("Self&nbsp;%","Share of all samples",{sort:"num",r:true})}</tr></thead><tbody>${rows}</tbody></table></div>${note}</div>`;
+}
+function threadsHtml(){
+  const ht=D.hotThreads||[];
+  if(!ht.length) return "";
+  const T=DV.samples;
+  const anyState=ht.some(t=>t[1]);
+  const hasFlame=!!(D.flame&&Array.isArray(D.flame)&&Array.isArray(D.flame[2])&&D.flame[2].length);
+  const rows=ht.map((t,i)=>{
+    const [s,st,name,meth,meths]=t;
+    const p=T?pct(s,T):null;
+    const stall=DV.stalled && name.indexOf(DV.stalled.name)>=0;
+    const stCell=anyState?`<td>${st?`<span class="st ${esc(st)}">${esc(String(st).replace("_"," "))}</span>`:"·"}</td>`:"";
+    const nameCell=hasFlame
+      ? `<span class="thlink" data-flamegroup="${esc(threadGroup(name))}" data-tip="Focus this thread in the flame graph">${esc(name)}</span>`
+      : esc(name);
+    const methCell=(meths&&meths.length)
+      ? `<td class="mcell"><div class="mname"><span class="exp">▸</span>${splitMethod(meth)}</div>${threadMethodsHtml(meths,s)}</td>`
+      : `<td>${splitMethod(meth)}</td>`;
+    return `<tr><td class="rank">${i+1}</td><td class="nm${stall?' stallname':''}"${stall?' data-tip="Tick thread of the stalled world."':''}>${nameCell}</td>${stCell}<td class="r" data-num="${s}">${fmt(s)}</td><td class="r"><span class="pct">${p!=null?p.toFixed(2)+"%":"·"}</span></td>${methCell}</tr>`;
+  }).join("");
+  const stHead=anyState?thc("State","State when last sampled; only RUNNABLE threads gather CPU samples.",{sort:"text"}):"";
+  const top=DV.topThread;
+  return `<p class="lead">Threads ranked by execution samples.${top&&T?` The busiest is <code class="mono">${esc(top[2])}</code> at <b>${pct(top[0],T).toFixed(1)}%</b>, with its most-sampled frame in <code class="mono" style="color:var(--violet)">${esc(leafName(top[3]))}</code>.`:""}${anyState?" CPU sampling only sees on-CPU threads, so waiting and blocked threads rarely appear here.":""}</p>
+  ${poolSummaryHtml(ht,T)}
+  ${threadTimelineHtml()}
+  <div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter threads…" data-filter="th-t"></span>${has(D.threadTotal)?`<span class="chip">${D.threadTotal} live threads</span>`:""}<span class="count" data-count="th-t">${ht.length} rows</span></div>
+  <div class="tscroll"><div class="tcap"><table class="sortable" id="th-t"><thead><tr>${thc("#","Rank by sample count",{r:true})}${thc("Thread","JVM thread name",{sort:"text"})}${stHead}${thc("Samples","Execution samples attributed to this thread",{sort:"num",r:true,def:"desc"})}${thc("Self&nbsp;%","Share of all samples",{sort:"num",r:true})}${thc("Top method","Most-sampled method on this thread; expand for the thread's top methods",{sort:"text"})}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function statesHtml(){
+  const ts=D.threadStates;
+  if(!ts) return "";
+  const colors={RUNNABLE:"#5bd68b",WAITING:"#62a8ea",TIMED_WAITING:"#a98be0",BLOCKED:"#f0626b",NEW:"#46cfc0",TERMINATED:"#6b7280"};
+  const segs=Object.entries(ts).filter(([,v])=>v>0).map(([k,v])=>({k,v,c:colors[k]||"#9aa1ad"}));
+  if(!segs.length) return "";
+  const legend=segs.map(s=>`<div class="lg"><span class="sw" style="background:${s.c}"></span><span>${esc(s.k.replace("_"," "))}</span><b>${s.v}</b></div>`).join("");
+  const blocked=ts.BLOCKED||0;
+  const note = blocked>0
+    ? `<div style="color:var(--bad);display:flex;gap:8px;align-items:center;margin-bottom:6px">${I.warn} <b style="color:var(--tx)">${blocked} blocked thread(s)</b></div>Blocked threads can indicate lock contention or a deadlock; inspect their stacks for a circular wait.`
+    : `<div style="color:var(--good);display:flex;gap:8px;align-items:center;margin-bottom:6px">${I.check} <b style="color:var(--tx)">No blocked threads</b></div>With zero blocked threads, lock contention and circular waits are unlikely to explain the incident.`;
+  const dl=(D.deadlocked&&D.deadlocked.length)?`<div class="alert"><b style="color:var(--bad)">Deadlock detected (${D.deadlocked.length})</b><ul>${D.deadlocked.map(d=>`<li>${esc(d)}</li>`).join("")}</ul></div>`:"";
+  const total=has(D.threadTotal)?D.threadTotal:segs.reduce((a,s)=>a+s.v,0);
+  return `<p class="lead">Live JVM threads by state. <b>${ts.RUNNABLE||0}</b> of <b>${total}</b> were runnable and <b>${blocked}</b> blocked.</p>
+  <div class="card"><div class="donutwrap"><div>${donut(segs)}</div><div class="legend">${legend}</div>
+  <div style="flex:1;min-width:220px;color:var(--tx3);font-size:12px;line-height:1.7;border-left:1px solid var(--border);padding-left:22px">${note}</div></div>${dl}</div>`;
+}
+
+function memHtml(){
+  const ser=D.series||{};
+  if(!D.heap&&!D.gc&&!D.ram&&!D.alloc&&!(D.retained&&D.retained.length)
+    &&!(D.gcByCollector&&D.gcByCollector.length)&&!(D.gcCauses&&D.gcCauses.length)
+    &&!(D.heapHistogram&&D.heapHistogram.length)&&!(D.slowIo&&D.slowIo.length)) return "";
+  const shortCls=n=>{const p=String(n).split(".");return p.length>=3?p.slice(-2).join("."):String(n);};
+  const parts=[];
+  const cards=[];
+  if(DV.heapG){
+    const mx=D.heap&&has(D.heap.max)&&D.heap.max>0?gib(D.heap.max):null;
+    const hcG=ser.heapCommitted?ser.heapCommitted.map(gib):null;
+    const chart=hcG
+      ? lineChart(null,{h:195,max:mx?mx:null,unit:" GiB",decimals:1,times:DV.span,marker:DV.incMarker,
+          multi:[{name:"used",series:DV.heapG,color:"#e6b34a",dec:1},{name:"committed",series:hcG,color:"#6e6650",dec:1}]})
+      : lineChart(DV.heapG,{h:195,color:"#e6b34a",max:mx?mx:null,unit:" GiB",decimals:1,times:DV.span,marker:DV.incMarker});
+    const hcid="ch"+CHART_ID;
+    const hlegend=hcG?`<div class="pmlegend"><span class="pmlg" data-pml="${hcid}:0" data-tip="toggle the heap used line"><span class="edot" style="background:#e6b34a"></span>used</span> <span class="pmlg" data-pml="${hcid}:1" data-tip="toggle the heap committed line"><span class="edot" style="background:#6e6650"></span>committed</span></div>`:"";
+    cards.push(`<div class="chartcard"><div class="cth"><span class="ctt">Heap used over capture window</span><span class="ctm">${DV.span?esc(DV.span.from)+" → "+esc(DV.span.to)+" · ":""}${mx?mx.toFixed(1)+" GiB max":""}${DV.gcName?" · "+esc(DV.gcName):""}</span></div>${hlegend}${chart}</div>`);
+  }
+  const gcrows=[];
+  if(D.sys&&D.sys.gcYoung&&D.sys.gcOld) gcrows.push(["Collector",D.sys.gcYoung+" + "+D.sys.gcOld]);
+  if(D.gc){
+    gcrows.push(["Collections",String(D.gc.collections)]);
+    gcrows.push(["Longest pause",D.gc.maxPauseMs+" ms"]);
+    gcrows.push(["Total pause time",D.gc.totalPauseMs+" ms"]);
+  } else if(D.gcByCollector&&D.gcByCollector.length){
+    D.gcByCollector.forEach(g=>gcrows.push([g[0],g[1]+" collections · "+g[2]+" ms total"]));
+  }
+  if(D.gc&&D.gcByCollector&&D.gcByCollector.length){
+    const tot=D.gcByCollector.filter(g=>g[1]>0).map(g=>g[0]+" ×"+fmt(g[1])).join(" · ");
+    if(tot) gcrows.push(["Collections since JVM start",tot]);
+  }
+  if(D.sys&&has(D.sys.gcParallel)) gcrows.push(["GC worker threads",D.sys.gcParallel+" parallel, "+(D.sys.gcConc??"?")+" concurrent"]);
+  if(D.heap&&has(D.heap.max)&&D.heap.max>0) gcrows.push(["Max heap (-Xmx)",gib(D.heap.max).toFixed(1)+" GiB"]);
+  if(D.heap){ gcrows.push(["Peak heap used",gib(D.heap.peak).toFixed(1)+" GiB"+(has(D.heap.max)&&D.heap.max>0?" ("+Math.round(100*D.heap.peak/D.heap.max)+"%)":"")]);
+    if(has(D.heap.floor)) gcrows.push(["Post-GC floor","~"+gib(D.heap.floor).toFixed(1)+" GiB"]);
+    if(has(D.heap.committed)) gcrows.push(["Heap committed",fmtBytes(D.heap.committed)]); }
+  if(D.sys&&D.sys.nonHeap&&has(D.sys.nonHeap.used)) gcrows.push(["Non-heap",fmtBytes(D.sys.nonHeap.used)+" used / "+fmtBytes(D.sys.nonHeap.committed)+" committed"]);
+  if(D.ram){ gcrows.push(["Process RSS (peak)",gb(D.ram.rssPeak).toFixed(1)+" GB"]);
+    gcrows.push(["Native memory (NMT)",D.ram.nmtOn?fmtBytes(D.ram.nativeCommitted)+" committed":"n/a, start with -XX:NativeMemoryTracking=summary"]); }
+  if(D.gc&&has(D.gc.explicitDisabled)){
+    const exDesc=D.gc.explicitDisabled?"disabled (-XX:+DisableExplicitGC)":(D.gc.explicitConcurrent?"concurrent (invokes concurrent)":"stop-the-world");
+    gcrows.push(["Explicit GC",exDesc]);
+    const ex=D.gc.explicitCalls||[];
+    const exTotal=ex.reduce((a,c)=>a+c[1],0);
+    gcrows.push(["Explicit GC calls",exTotal===0?"none in window":exTotal+" · "+ex.map(c=>c[0]+" ×"+c[1]).join(", ")]);
+  }
+  if(gcrows.length) cards.push(`<div class="kvcard"><div class="kvh"><span class="ic">${I.gc}</span><b>Garbage collection &amp; memory</b><small>${DV.gcHealthy==null?"":(DV.gcHealthy?"healthy":"review")}</small></div><div class="kv">${gcrows.map(r=>`<div class="row"><span class="k">${esc(r[0])}</span><span class="v">${esc(r[1])}</span></div>`).join("")}</div></div>`);
+  if(cards.length) parts.push(cards.length===2?`<div class="charts2">${cards.join("")}</div>`:cards.join(""));
+  if(Array.isArray(D.memPools)&&D.memPools.length){
+    const pools=[...D.memPools].sort((a,b)=>((b[4]>=0)-(a[4]>=0)));
+    const pv=v=>(has(v)&&v>=0)?fmtBytes(v):"·";
+    const prows=pools.map(p=>`<tr><td class="nm">${esc(String(p[0]))}</td><td class="r" data-num="${p[1]}">${pv(p[1])}</td><td class="r" data-num="${p[2]}">${pv(p[2])}</td><td class="r" data-num="${p[3]}">${pv(p[3])}</td><td class="r" data-num="${p[4]}">${pv(p[4])}</td></tr>`).join("");
+    parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Memory pools</span><span class="ctm">JVM memory pools at capture</span></div>
+      <div class="subnote">Heap pools first. "At last GC" is the pool's usage right after the most recent collection; "·" means the JVM does not report that value for this pool.</div>
+      <div class="tscroll"><table class="sortable" id="mp-t"><thead><tr>${thc("Pool","JVM memory pool name",{sort:"text"})}${thc("Used","Bytes in use at capture",{sort:"num",r:true})}${thc("Committed","Bytes reserved from the OS for this pool",{sort:"num",r:true})}${thc("Max","Configured ceiling for this pool",{sort:"num",r:true})}${thc("At last GC","Usage right after the most recent collection",{sort:"num",r:true})}</tr></thead><tbody>${prows}</tbody></table></div></div>`);
+  }
+  if(D.gcCauses&&D.gcCauses.length){
+    const crows=D.gcCauses.map((c,i)=>`<tr><td class="rank">${i+1}</td><td class="nm">${esc(String(c[0]))}</td><td class="r" data-num="${c[1]}">${fmt(c[1])}</td><td class="r" data-num="${c[2]}">${Number(c[2]).toFixed(1)}</td></tr>`).join("");
+    parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">GC causes</span><span class="ctm">why each collection fired</span></div>
+      <div class="tscroll"><table class="sortable" id="gcc-t"><thead><tr>${thc("#","Rank",{r:true})}${thc("Cause","GC cause reported by the JVM",{sort:"text"})}${thc("Collections","Collections with this cause",{sort:"num",r:true,def:"desc"})}${thc("Total pause ms","Summed pause time for this cause",{sort:"num",r:true})}</tr></thead><tbody>${crows}</tbody></table></div></div>`);
+  }
+  if(DV.rssG&&D.ram){
+    parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Process RSS over capture window</span><span class="ctm">peak ${gb(D.ram.rssPeak).toFixed(1)} GB${D.sys&&has(DV.memLimitBytes)?" · "+gb(DV.memLimitBytes).toFixed(1)+" GB "+DV.memBasis:""}</span></div>${lineChart(DV.rssG,{h:150,color:"#d98b6a",unit:" GB",decimals:1,times:DV.span,marker:DV.incMarker})}</div>`);
+  }
+  if(D.alloc&&(((D.alloc.bySubsystem||[]).length)||((D.alloc.byThread||[]).length)||((D.alloc.byClass||[]).length)||((D.alloc.byMod||[]).length))){
+    const tot=(has(D.alloc.total)&&D.alloc.total>0?D.alloc.total:(D.alloc.bySubsystem||[]).reduce((a,s)=>a+s[1],0))||1;
+    const allocBars=(items,nowrap)=>{
+      const mx=Math.max(...items.map(i=>i[1]));
+      return items.map(i=>{
+        const lbl=String(i[0]);
+        return `<div class="wbar"><div class="wn"><span${nowrap?' class="tnc"':""} data-tipov="${esc(lbl)}">${esc(lbl)}</span></div><div class="wt"><div class="wf al" style="width:${(100*i[1]/Math.max(1,mx)).toFixed(1)}%"></div></div><div class="wv">${fmtBytes(i[1])} · ${pct(i[1],tot).toFixed(1)}%</div></div>`;
+      }).join("");
+    };
+    const arate=has(D.incident.windowSec)&&D.incident.windowSec>0?` ≈ ${fmtBytes(tot/D.incident.windowSec)}/s`:"";
+    const note=`<div class="subnote">JFR allocation samples over the window: allocation pressure (GC churn), not retained RAM. ${fmtBytes(tot)} of sampled allocations attributed${arate}.</div>`;
+    const aworlds=(D.alloc.byWorld||[]).filter(w=>w.bytes>0);
+    if(aworlds.length>1){
+      parts.push(`<div class="tbar wsel"><span class="wsl">scope</span><span class="chip tog on" data-allocworld="*">all worlds</span>`
+        +aworlds.map(w=>`<span class="chip tog" data-allocworld="${esc(w.world)}">${esc(worldLabel(w.world))} · ${pct(w.bytes,tot).toFixed(0)}%</span>`).join("")+`</div>`);
+    }
+    if((D.alloc.bySubsystem||[]).length) parts.push(`<div class="chartcard" style="margin-top:12px"><div class="cth"><span class="ctt">Where allocation pressure goes, by engine subsystem</span><span class="ctm">${fmtBytes(tot)} sampled</span></div>${note}<div class="wbars" id="allocSub"></div></div>`);
+    if((D.alloc.byMod||[]).length) parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Where allocation pressure goes, by mod</span><span class="ctm">${fmtBytes(tot)} sampled</span></div><div class="wbars" id="allocMod"></div></div>`);
+    if((D.alloc.byThread||[]).length) parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Top allocating threads</span><span class="ctm">allocation samples</span></div><div class="wbars">${allocBars(D.alloc.byThread,true)}</div></div>`);
+    if((D.alloc.byClass||[]).length){
+      const mx=Math.max(...D.alloc.byClass.map(i=>i[1]));
+      const clsBars=D.alloc.byClass.map(i=>{
+        const full=String(i[0]);
+        return `<div class="wbar"><div class="wn"><span class="tnc" data-tipov="${esc(full)}">${esc(shortCls(full))}</span></div><div class="wt"><div class="wf al" style="width:${(100*i[1]/Math.max(1,mx)).toFixed(1)}%"></div></div><div class="wv">${fmtBytes(i[1])} · ${pct(i[1],tot).toFixed(1)}%</div></div>`;
+      }).join("");
+      parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Top allocated classes</span><span class="ctm">allocation samples</span></div><div class="wbars">${clsBars}</div></div>`);
+    }
+  }
+  if(D.retained&&D.retained.length){
+    const rrows=D.retained.map((r,i)=>{
+      const cls=String(r[0]), site=r[2]?String(r[2]):null;
+      return `<tr><td class="rank">${i+1}</td><td class="nm"><span class="tnc2" data-tipov="${esc(cls)}">${esc(shortCls(cls))}</span></td><td class="r" data-num="${r[1]}">${fmt(r[1])}</td><td class="mono">${site?`<span class="tnc2" style="max-width:420px" data-tipov="${esc(site)}">${esc(shortCls(site))}</span>`:"·"}</td></tr>`;
+    }).join("");
+    parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Long-lived allocations</span><span class="ctm">JFR old-object samples</span></div>
+      <div class="subnote">Old-object samples: objects still alive late in the recording, the leak candidates. Ranked by sample count; approximate, not exact retained bytes.</div>
+      <div class="tscroll"><table class="sortable" id="ret-t"><thead><tr>${thc("#","Rank by sample count",{r:true})}${thc("Class","Sampled object class",{sort:"text"})}${thc("Samples","Old-object samples of this class still reachable",{sort:"num",r:true,def:"desc"})}${thc("Dominant allocation site","Most common allocation site among the samples")}</tr></thead><tbody>${rrows}</tbody></table></div></div>`);
+  }
+  if(D.heapHistogram&&D.heapHistogram.length){
+    const totB=D.heapHistogram.reduce((a,r)=>a+r[2],0)||1;
+    const hrows=D.heapHistogram.map((r,i)=>{
+      const p=100*r[2]/totB;
+      return `<tr><td class="rank">${i+1}</td><td class="nm"><span class="tnc2" data-tipov="${esc(String(r[0]))}">${esc(shortCls(r[0]))}</span></td><td class="r" data-num="${r[1]}">${fmt(r[1])}</td><td class="r" data-num="${r[2]}">${fmtBytes(r[2])}</td><td class="r" data-num="${p.toFixed(2)}"><span class="pct">${p.toFixed(1)}%</span></td></tr>`;
+    }).join("");
+    parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Heap histogram</span><span class="ctm">exact live bytes per class at capture</span></div>
+      <div class="subnote">Point-in-time heap walk at capture (opt-in, Capture.HeapHistogram): exact instances and shallow bytes per class, complementing the sampled leak candidates above.</div>
+      <div class="tscroll"><table class="sortable" id="hh-t"><thead><tr>${thc("#","Rank",{r:true})}${thc("Class","Object class",{sort:"text"})}${thc("Instances","Live instances at capture",{sort:"num",r:true})}${thc("Bytes","Shallow bytes at capture",{sort:"num",r:true,def:"desc"})}${thc("% of listed","Share of the bytes listed in this table",{sort:"num",r:true})}</tr></thead><tbody>${hrows}</tbody></table></div></div>`);
+  }
+  if(D.slowIo&&D.slowIo.length){
+    const srows=D.slowIo.map((r,i)=>{
+      const full=String(r[0]);
+      const shortP=full.split("/").filter(Boolean).slice(-2).join("/")||full;
+      const kind=String(r[3]||"");
+      return `<tr><td class="rank">${i+1}</td><td data-sval="${esc(full)}"><span class="tnc2" data-tipov="${esc(full)}">${esc(shortP)}</span></td><td data-sval="${esc(kind)}"><span class="lvl ${kind==="write"?"WARN":"INFO"}">${esc(kind)}</span></td><td class="r" data-num="${r[1]}">${Number(r[1]).toFixed(0)}</td><td class="r" data-num="${r[2]}">${fmtBytes(r[2])}</td></tr>`;
+    }).join("");
+    parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Slow file operations</span><span class="ctm">individual ops at or over 20 ms</span></div>
+      <div class="subnote">File operations that took 20 ms or longer (the JFR reporting threshold). A world save or log flush blocking here is tick time lost.</div>
+      <div class="tscroll"><table class="sortable" id="sio-t"><thead><tr>${thc("#","Rank",{r:true})}${thc("Path","File path; hover for the full path",{sort:"text"})}${thc("Kind","Read or write",{sort:"text"})}${thc("Duration ms","Wall time of the single operation",{sort:"num",r:true,def:"desc"})}${thc("Bytes","Bytes transferred by the operation",{sort:"num",r:true})}</tr></thead><tbody>${srows}</tbody></table></div></div>`);
+  }
+  if(!parts.length) return "";
+  let lead="";
+  if(D.heap&&D.gc){
+    const ex=D.gc.explicitCalls||[], exTotal=ex.reduce((a,c)=>a+c[1],0);
+    const exLead=has(D.gc.explicitDisabled)?(exTotal===0?` No explicit <code class="mono">System.gc()</code> calls fired in the window.`:` ${exTotal} explicit <code class="mono">System.gc()</code> call(s) fired; attributed to ${ex.map(c=>esc(c[0])).join(", ")}.`):"";
+    lead=`<p class="lead">Heap usage and GC pauses over the capture window. Heap moved between roughly ${gib(D.heap.floor).toFixed(1)} and ${gib(D.heap.peak).toFixed(1)} GiB${has(D.heap.max)&&D.heap.max>0?` against a ${gib(D.heap.max).toFixed(1)} GiB maximum`:""}; ${esc(DV.gcName||"the collector")} ran ${D.gc.collections} collections with a longest pause of <b>${D.gc.maxPauseMs}ms</b>.${exLead}</p>`;
+  }
+  return lead+((DV.heapG||DV.rssG)?legendHtml():"")+parts.join("");
+}
+
+function networkHtml(){
+  const ser=D.series||{};
+  if(!D.net) return "";
+  const mb=v=>has(v)?v.toFixed(1):"n/a";
+  const inKnown=has(D.net.inAvg);
+  const others=Array.isArray(D.net.others)?D.net.others.filter(o=>o&&o.length>=5):[];
+  const cards=[];
+  if(ser.netOut) cards.push(`<div class="chartcard"><div class="cth"><span class="ctt">Outbound network over capture window</span><span class="ctm">${esc(D.net.iface)} · avg ${mb(D.net.outAvg)} · peak ${mb(D.net.outPeak)} Mb/s</span></div>${lineChart(ser.netOut,{h:195,color:"#a98be0",max:Math.max(1,Math.ceil(D.net.outPeak*1.12)),unit:" Mb/s",decimals:1,times:DV.span,marker:DV.incMarker})}</div>`);
+  const rows=[
+    ["Interface",D.net.iface],
+    ["Outbound avg / peak",mb(D.net.outAvg)+" / "+mb(D.net.outPeak)+" Mb/s"],
+    ["Inbound avg / peak",inKnown?(mb(D.net.inAvg)+" / "+mb(D.net.inPeak)+" Mb/s"):"n/a"]
+  ];
+  if(has(D.incident.windowSec)&&D.incident.windowSec>0){
+    const tot=mbps=>{const mb=mbps*D.incident.windowSec/8;return mb>=1000?(mb/1000).toFixed(1)+" GB":Math.round(mb)+" MB";};
+    if(inKnown) rows.push(["Transferred in (window)","≈ "+tot(D.net.inAvg)]);
+    rows.push(["Transferred out (window)","≈ "+tot(D.net.outAvg)]);
+  }
+  others.forEach(o=>rows.push([String(o[0]),`in ${Number(o[1]).toFixed(1)}/${Number(o[2]).toFixed(1)} · out ${Number(o[3]).toFixed(1)}/${Number(o[4]).toFixed(1)} Mb/s`]));
+  rows.push(["Throughput source","jdk.NetworkUtilization (per-interface, host-wide)"]);
+  cards.push(`<div class="kvcard"><div class="kvh"><span class="ic">${I.net}</span><b>Network</b><small>${esc(D.net.iface)}</small></div><div class="kv">${rows.map(r=>`<div class="row"><span class="k">${esc(r[0])}</span><span class="v">${esc(r[1])}</span></div>`).join("")}</div></div>`);
+  let out=cards.length===2?`<div class="charts2">${cards.join("")}</div>`:cards.join("");
+  if(ser.netIn) out+=`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Inbound network over capture window</span><span class="ctm">avg ${mb(D.net.inAvg)} · peak ${mb(D.net.inPeak)} Mb/s</span></div>${lineChart(ser.netIn,{h:150,color:"#62a8ea",max:Math.max(1,Math.ceil(D.net.inPeak*1.25)),unit:" Mb/s",decimals:1,times:DV.span,marker:DV.incMarker})}</div>`;
+  const lead=`<p class="lead">Network throughput on <code class="mono">${esc(D.net.iface)}</code> over the window. Outbound averaged <b>${mb(D.net.outAvg)} Mb/s</b> (peak ${mb(D.net.outPeak)})${inKnown?`; inbound <b>${mb(D.net.inAvg)} Mb/s</b> (peak ${mb(D.net.inPeak)})`:`; inbound n/a`}. Rates are host-wide for the interface.${others.length?` <b>${others.length}</b> other active interface${others.length===1?"":"s"} listed in the Network card.`:""}</p>`;
+  return lead+((ser.netOut||ser.netIn)?legendHtml():"")+out;
+}
+
+function worldsHtml(){
+  const ws=DV.worlds;
+  if(!ws.length) return "";
+  const T=DV.samples;
+  const hasSamples=T&&ws.some(w=>has(w.samples));
+  const hasTick=ws.some(w=>has(w.tps));
+  const entMap=new Map((D.entities||[]).map(e=>[e[0],e[1]]));
+  const hasEnt=entMap.size>0||ws.some(w=>has(w.entities));
+  const hasChunks=ws.some(w=>has(w.chunks));
+  const hasPct=ws.some(w=>has(w.msptP50)||has(w.msptP95)||has(w.msptMax));
+  const pcountOf=w=>{const a=w.playerNames||[];const n=has(w.players)?w.players:a.length;return `<span class="pcount${n?'':' z'}"${a.length?` data-tip="In world: ${esc(a.join(", "))}"`:''}><span class="plk">${I.players}</span><b>${n}</b></span>`;};
+  const rows=ws.map(w=>{
+    const isInst=String(w.name).indexOf("instance-")===0;
+    const kind=isInst?"instance":"persistent";
+    const badges=w.stalled?' <span class="st TIMED_WAITING" style="margin-left:6px">STALLED</span>':'';
+    let cells=`<td class="nm" data-sval="${esc(worldLabel(w.name))}"><span${w.stalled?' class="stallname"':''} data-tipov="${esc(w.name)}">${esc(worldLabel(w.name))}</span>${badges} ${pcountOf(w)}</td><td class="pkg">${kind}</td>`;
+    if(hasEnt){
+      const ents=entMap.get(w.name);
+      const tot=has(w.entities)?w.entities:(ents&&ents.length?ents.reduce((a,t)=>a+t[1],0):null);
+      if(ents&&ents.length){
+        const tip=ents.map(t=>`${String(t[0])} ×${fmt(t[1])}`).join(", ");
+        cells+=`<td data-num="${tot}"><span class="pcount" data-tip="Top types: ${esc(tip)}"><b>${fmt(tot)}</b></span></td>`;
+      } else if(tot!=null) cells+=`<td data-num="${tot}"><span class="pcount"><b>${fmt(tot)}</b></span></td>`;
+      else cells+=`<td data-num="-1"><span class="pkg">·</span></td>`;
+    }
+    if(hasChunks) cells+=`<td class="r" data-num="${has(w.chunks)?w.chunks:-1}">${has(w.chunks)?fmt(w.chunks):"·"}</td>`;
+    if(hasTick){
+      cells+=`<td class="r" data-num="${has(w.tps)?w.tps:-1}">${has(w.tps)&&w.tps>=0?w.tps.toFixed(1):"·"}</td>`;
+      if(hasPct){
+        const med=has(w.msptP50)?w.msptP50:w.mspt;
+        const pc=v=>has(v)&&v>=0?v.toFixed(1):"·";
+        cells+=`<td class="r" data-num="${has(med)?med:-1}">${pc(med)}</td><td class="r" data-num="${has(w.msptP95)?w.msptP95:-1}">${pc(w.msptP95)}</td><td class="r" data-num="${has(w.msptMax)?w.msptMax:-1}">${pc(w.msptMax)}</td>`;
+      } else {
+        cells+=`<td class="r" data-num="${has(w.mspt)?w.mspt:-1}">${has(w.mspt)&&w.mspt>=0?w.mspt.toFixed(1):"·"}</td>`;
+      }
+    }
+    if(hasSamples){
+      const s=has(w.samples)?w.samples:0, p=pct(s,T), heavy=p>=20, idle=s===0;
+      cells+=`<td class="r" data-num="${s}">${fmt(s)}</td><td class="r"><span class="${heavy?'v-warn':(idle?'pkg':'pct')}">${p.toFixed(1)}%</span></td>`;
+    }
+    return `<tr class="${w.stalled?'hl':''}">${cells}</tr>`;
+  }).join("");
+  let head=thc("World","World or ephemeral instance name",{sort:"text"})+thc("Kind","Persistent world or ephemeral instance",{sort:"text"});
+  if(hasEnt) head+=thc("Entities","Live entities in this world at capture; hover a count for the typed breakdown",{sort:"num"});
+  if(hasChunks) head+=thc("Chunks","Loaded chunks in this world at capture",{sort:"num",r:true});
+  if(hasTick){
+    head+=thc("TPS","Measured tick rate at capture",{sort:"num",r:true});
+    if(hasPct) head+=thc("MSPT med","Median milliseconds per tick over the window",{sort:"num",r:true})+thc("p95","95th percentile milliseconds per tick",{sort:"num",r:true})+thc("max","Worst single tick in the window (ms)",{sort:"num",r:true});
+    else head+=thc("MSPT","Average milliseconds per tick at capture",{sort:"num",r:true});
+  }
+  if(hasSamples) head+=thc("Samples","CPU samples on this world's tick thread",{sort:"num",r:true,def:"desc"})+thc("CPU&nbsp;%","Share of all execution samples",{sort:"num",r:true});
+  const lead=DV.topWorld&&T
+    ? `<p class="lead">Per-world CPU from execution samples. <b>${esc(worldLabel(DV.topWorld.name))}</b> leads at <b>${pct(DV.topWorld.samples,T).toFixed(1)}%</b>${DV.stalled?`; the stalled world <code class="mono">${esc(worldLabel(DV.stalled.name))}</code> ranks #${DV.stalledRank} of ${ws.length}`:''}. Hover a world's player count to see who was connected, or an entity count for the typed breakdown.</p>`
+    : `<p class="lead">Worlds at the moment of capture. Hover a world's player count to see who was connected, or an entity count for the typed breakdown.</p>`;
+  return lead+`<div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter worlds…" data-filter="w-t"></span><span class="count" data-count="w-t">${ws.length} rows</span></div>
+  <div class="tscroll"><table class="sortable" id="w-t"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function systemHtml(){
+  const s=D.sys; if(!s) return "";
+  const row=(k,v)=>v==null?"":`<div class="row"><span class="k">${esc(k)}</span><span class="v">${esc(String(v))}</span></div>`;
+  function swapRow(){
+    const sw=s.swap;
+    if(!sw||!has(sw.total)||sw.total<=0) return "";
+    const used=Math.max(0,sw.total-(sw.free||0));
+    return `<div class="row"><span class="k">Swap (host)</span><span class="v${used>0?" v-warn":""}">${fmtBytes(used)} used of ${fmtBytes(sw.total)}</span></div>`;
+  }
+  function card(ic,title,sub,rows){const body=rows.join("");if(!body)return "";return `<div class="kvcard"><div class="kvh"><span class="ic">${ic}</span><b>${esc(title)}</b><small>${esc(sub||"")}</small></div><div class="kv">${body}</div></div>`;}
+  const cards=[
+    card(I.cpu,"Processor",has(s.cpuCores)?s.cpuCores+" cores":"",[
+      row("Brand",s.cpuBrand),row("Cores",s.cpuCores),row("Hardware threads",s.hwThreads),row("Sockets",s.sockets),
+      row("Container CPU",has(s.cpuUsageCores)&&s.cpuUsageCores>=0?s.cpuUsageCores.toFixed(2)+" cores"+(s.container&&has(s.container.cpuLimit)&&s.container.cpuLimit>0&&has(s.cpuCores)&&s.container.cpuLimit<s.cpuCores?" ("+(100*s.cpuUsageCores/s.container.cpuLimit).toFixed(0)+"% of limit)":(has(s.cpuCores)&&s.cpuCores>0?" ("+(100*s.cpuUsageCores/s.cpuCores).toFixed(0)+"% of "+s.cpuCores+" cores)":"")):null),
+      row("CPU affinity (cpuset)",s.cpuset||null),
+      row("Pressure (PSI some avg10)",[has(s.psiCpu)&&s.psiCpu>=0?"cpu "+s.psiCpu.toFixed(1)+"%":null,has(s.psiIo)&&s.psiIo>=0?"io "+s.psiIo.toFixed(1)+"%":null,has(s.psiMem)&&s.psiMem>=0?"mem "+s.psiMem.toFixed(1)+"%":null].filter(Boolean).join(" · ")||null),
+      row("Machine RAM (host)",has(s.ramTotal)&&s.ramTotal>0?gb(s.ramTotal).toFixed(1)+" GB":null),
+      row("Load average (1m, host)",has(s.loadAvg)&&s.loadAvg>=0?s.loadAvg.toFixed(2):null),
+      row("CPU throttling",has(s.throttledPeriods)&&s.throttledPeriods>0?s.throttledPeriods+" periods"+(has(s.throttledMs)&&s.throttledMs>0?" · "+fmtDur(s.throttledMs):"")+" in window":null),
+      row("CPU steal (host)",has(s.cpuStealPct)&&s.cpuStealPct>=0?s.cpuStealPct.toFixed(1)+"% of window":null),
+      row("CPU iowait (host)",has(s.cpuIowaitPct)&&s.cpuIowaitPct>=0?s.cpuIowaitPct.toFixed(1)+"% of window":null),
+      row("Safepoints",has(s.safepointCount)&&s.safepointCount>0?fmt(s.safepointCount)+(has(s.safepointMs)&&s.safepointMs>0?" · "+s.safepointMs.toFixed(0)+" ms to-safepoint":"")+" in window":null)
+    ]),
+    card(osIcon(s.os||""),"Operating system",osFamily(s.os||""),[
+      row("OS",s.os),row("Architecture",s.arch),row("Host",s.server),
+      row("Server software",s.hytale?"Hytale Dedicated "+s.hytale:null),row("Uptime",has(s.uptimeMs)&&s.uptimeMs>0?fmtDur(s.uptimeMs):null),
+      row("Disk",s.disk&&has(s.disk.total)&&s.disk.total>0?gb(s.disk.free).toFixed(1)+" GB free of "+gb(s.disk.total).toFixed(1)+" GB":null),
+      row("Block I/O limit",(has(s.ioReadLimit)&&s.ioReadLimit>=0)||(has(s.ioWriteLimit)&&s.ioWriteLimit>=0)?[has(s.ioReadLimit)&&s.ioReadLimit>=0?"read "+fmtBytes(s.ioReadLimit)+"/s":null,has(s.ioWriteLimit)&&s.ioWriteLimit>=0?"write "+fmtBytes(s.ioWriteLimit)+"/s":null].filter(Boolean).join(" · "):null),
+      row("Host memory",has(s.hostMemUsed)&&s.hostMemUsed>=0?(has(s.ramTotal)&&s.ramTotal>0?gb(s.hostMemUsed).toFixed(1)+" GB of "+gb(s.ramTotal).toFixed(1)+" GB used":gb(s.hostMemUsed).toFixed(1)+" GB used"):null),
+      swapRow(),
+      row("Runtime",s.container&&s.container.runtime?s.container.runtime:null),
+      row("Container",s.container&&s.container.type?s.container.type:null),
+      row("CPU limit",(s.container&&has(s.container.cpuLimit)&&s.container.cpuLimit>0)?(has(s.cpuCores)&&s.cpuCores>0&&s.container.cpuLimit>=s.cpuCores?"unlimited (quota "+s.container.cpuLimit.toFixed(0)+")":s.container.cpuLimit.toFixed(1)+" cores"):null),
+      row("Memory limit",s.container&&has(s.container.memLimit)&&s.container.memLimit>0?fmtBytes(s.container.memLimit):null),
+      row("Open files",has(s.openFds)&&s.openFds>=0?(has(s.maxFds)&&s.maxFds>0?fmt(s.openFds)+" of "+fmt(s.maxFds):fmt(s.openFds)):null),
+      row("Container memory",has(s.containerMemUsed)&&s.containerMemUsed>=0?(s.container&&has(s.container.memLimit)&&s.container.memLimit>0?fmtBytes(s.containerMemUsed)+" of "+fmtBytes(s.container.memLimit)+" ("+(100*s.containerMemUsed/s.container.memLimit).toFixed(0)+"%)":fmtBytes(s.containerMemUsed)):null),
+      row("Container swap",has(s.containerSwapUsed)&&s.containerSwapUsed>=0?(s.containerSwapMax===0?"disabled":fmtBytes(s.containerSwapUsed)+(has(s.containerSwapMax)&&s.containerSwapMax>0?" of "+fmtBytes(s.containerSwapMax):" used")):null),
+      row("OOM kills",has(s.oomKills)&&s.oomKills>0?fmt(s.oomKills)+" (cumulative)":null)
+    ]),
+    card(I.java,"Java / JVM",s.javaVendor?jvmDistro(s.javaVendor):"",[
+      row("Runtime",s.jvm),row("Vendor",s.javaVendor),row("Version",s.javaVersion),row("java.home",s.javaHome),
+      ...(s.loaders||[]).map(l=>row(l[0]+" loader",l[1])),
+      row("Max heap",has(s.xmxBytes)&&s.xmxBytes>0?gib(s.xmxBytes).toFixed(1)+" GiB (-Xmx)":null)
+    ]),
+    card(I.gc,"Garbage collector",DV.gcName||"",[
+      row("Young",s.gcYoung),row("Old",s.gcOld),row("Parallel GC threads",s.gcParallel),row("Concurrent GC threads",s.gcConc),
+      row("GC time ratio",s.gcTimeRatio),
+      row("Explicit GC",D.gc&&has(D.gc.explicitDisabled)?(D.gc.explicitDisabled?"disabled":(D.gc.explicitConcurrent?"concurrent":"stop-the-world")):null)
+    ])
+  ].filter(Boolean);
+  let cw="";
+  const cRisk=containerRisk();
+  if(cRisk) cw=`<div class="cwarn" id="cwarn">${I.warn}<span>Heap <b>-Xmx (${gib(cRisk.xmx).toFixed(1)} GiB)</b> is at or above the ${s.container&&s.container.runtime?esc(s.container.runtime)+" ":""}container memory limit (<b>${gib(cRisk.lim).toFixed(1)} GiB</b>): the JVM can be OOM-killed before GC reacts.</span></div>`;
+  let dw="";
+  const dRisk=diskRisk();
+  if(dRisk) dw=`<div class="cwarn" id="dwarn">${I.warn}<span>Low disk space (<b>${gb(dRisk.free).toFixed(1)} GB</b> free of ${gb(dRisk.total).toFixed(1)} GB): the JFR recording and incident bundles can fail to write.</span></div>`;
+  let cmd="";
+  if(s.startCommand){
+    const long=s.startCommand.length>200;
+    cmd=`<div class="codewrap${long?" closed":""}" style="margin-top:16px"><div class="codehd"${long?' data-code':''}><span class="ic">${I.term}</span><span class="fn">Start command</span>${long?`<span class="chev2">${I.chev}</span>`:""}</div><pre class="cmdpre">${esc(s.startCommand)}</pre></div>`;
+  }
+  if(!cards.length&&!cw&&!dw&&!cmd) return "";
+  return (cards.length?`<div class="syscols">${cards.join("")}</div>`:"")+cw+dw+cmd;
+}
+
+function pluginsHtml(){
+  const pl=D.plugins;
+  if(!pl||!pl.length) return "";
+  const core=pl.filter(p=>p[3]).length, comm=pl.length-core;
+  const incompat=pl.filter(p=>p[5]==="INCOMPATIBLE").length;
+  const rows=pl.map(p=>{
+    const [author,name,ver,isCore]=p, range=p[4]||null, compat=p[5]||null;
+    const link=isCore?'<span class="corebadge">core module</span>':`<a class="cf" href="https://www.curseforge.com/hytale/search?search=${encodeURIComponent(name)}" target="_blank" rel="noopener noreferrer">${I.ext} CurseForge</a>`;
+    const ci=MIXCONF.modInfo.get(name);
+    const ovl=ci?` <span class="ovltag" data-tip="${esc(ci.join("; "))}">mixin overlap</span>`:"";
+    let bad="", cfCell;
+    if(compat==="INCOMPATIBLE"){
+      bad=` <span class="ovltag badtag" data-tip="Declared server range ${esc(range||"?")} excludes the running server version.">incompatible</span>`;
+      cfCell=`<span class="vtag v-bad">${esc(range||"?")}</span>`;
+    } else if(compat==="MISSING"||compat==="PARSE_FAILED"){
+      cfCell=`<span class="pkg" data-tip="No parseable server range in the manifest.">?</span>`;
+    } else {
+      cfCell=range?`<span class="vtag">${esc(range)}</span>`:`<span class="pkg">·</span>`;
+    }
+    return `<tr data-type="${isCore?'core':'community'}"><td class="nm">${esc(name)}${bad}${ovl}</td><td class="pkg">${esc(author)}</td><td class="vtag">${esc(ver)}</td><td data-sval="${esc(range||"")}">${cfCell}</td><td>${isCore?'<span class="st NEUTRAL">CORE</span>':'<span class="st RUNNABLE">COMMUNITY</span>'}</td><td>${link}</td></tr>`;
+  }).join("");
+  return `<p class="lead"><b>${pl.length}</b> plugins loaded: <b>${core}</b> Hytale core modules and <b>${comm}</b> community plugins.${incompat?` <b class="v-bad">${incompat}</b> mod${incompat===1?" declares":"s declare"} a server range that excludes this server.`:""}</p>
+  <div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter plugins…" data-filter="pl-t"></span><span class="chip tog" data-type-filter="pl-t" data-val="core">${core} core</span><span class="chip tog on" data-type-filter="pl-t" data-val="community">${comm} community</span><span class="count" data-count="pl-t">${pl.length} rows</span></div>
+  <div class="tscroll"><div class="tcap"><table class="sortable" id="pl-t"><thead><tr>${thc("Plugin","Plugin or module name",{sort:"text"})}${thc("Author","Author or namespace",{sort:"text"})}${thc("Version","Installed version",{sort:"text"})}${thc("Compiled for","Server range from the mod's manifest, checked against the running server.",{sort:"text"})}${thc("Type","Hytale core engine module vs community plugin",{sort:"text"})}${thc("Link","Search for this plugin on CurseForge (external link)")}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function assetPacksHtml(){
+  const ap=D.assetPacks;
+  if(!ap||!ap.length) return "";
+  const incompat=ap.filter(p=>p[5]==="INCOMPATIBLE").length;
+  const rows=ap.map(p=>{
+    const author=p[0],name=p[1],ver=p[2],range=p[4]||null,compat=p[5]||null;
+    const link=`<a class="cf" href="https://www.curseforge.com/hytale/search?search=${encodeURIComponent(name)}" target="_blank" rel="noopener noreferrer">${I.ext} CurseForge</a>`;
+    let bad="",cfCell;
+    if(compat==="INCOMPATIBLE"){
+      bad=` <span class="ovltag badtag" data-tip="Declared server range ${esc(range||"?")} excludes the running server version.">incompatible</span>`;
+      cfCell=`<span class="vtag v-bad">${esc(range||"?")}</span>`;
+    } else if(compat==="MISSING"||compat==="PARSE_FAILED"){
+      cfCell=`<span class="pkg" data-tip="No parseable server range in the manifest.">?</span>`;
+    } else {
+      cfCell=range?`<span class="vtag">${esc(range)}</span>`:`<span class="pkg">·</span>`;
+    }
+    return `<tr><td class="nm">${esc(name)}${bad}</td><td class="pkg">${esc(author)}</td><td class="vtag">${esc(ver)}</td><td data-sval="${esc(range||"")}">${cfCell}</td><td>${link}</td></tr>`;
+  }).join("");
+  return `<p class="lead"><b>${ap.length}</b> asset pack${ap.length===1?"":"s"} loaded from <code>mods</code>.${incompat?` <b class="v-bad">${incompat}</b> pack${incompat===1?"":"s"} declare a server range that excludes this server.`:""}</p>
+  <div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter asset packs…" data-filter="ap-t"></span><span class="count" data-count="ap-t">${ap.length} rows</span></div>
+  <div class="tscroll"><div class="tcap"><table class="sortable" id="ap-t"><thead><tr>${thc("Asset pack","Asset pack name",{sort:"text"})}${thc("Author","Author or namespace",{sort:"text"})}${thc("Version","Installed version",{sort:"text"})}${thc("Compiled for","Server range from the pack's manifest, checked against the running server.",{sort:"text"})}${thc("Link","Search for this asset pack on CurseForge (external link)")}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function logHtml(){
+  const log=D.log;
+  if(!log||!log.length) return "";
+  const grouped=[];
+  for(const l of log){
+    const prev=grouped[grouped.length-1];
+    if(prev && prev[0]===l[0] && prev[1]===l[1] && prev[2]===l[2]) prev[3]++;
+    else grouped.push([l[0],l[1],l[2],1]);
+  }
+  const collapsed=log.length-grouped.length;
+  const errs=log.filter(l=>l[0]==="ERROR").length, warns=log.filter(l=>l[0]==="WARN").length;
+  const lines=grouped.map(l=>{
+    const [lv,src,msg,n]=l;
+    const lvCls=(lv==="ERROR"||lv==="WARN"||lv==="INFO")?lv:"OTHER";
+    const nl=msg.indexOf("\n");
+    const multiline=nl>=0;
+    const first=multiline?msg.slice(0,nl):msg;
+    const cnt=n>1?`<span class="repeat" data-tip="repeated ${n} times">×${n}</span>`:"";
+    const body=multiline
+      ? `<details class="logdet"><summary><span class="logfirst">${esc(first)}</span> <span class="logmore">+${msg.split("\n").length-1} more lines</span>${cnt}</summary><pre class="logpre">${esc(msg)}</pre></details>`
+      : `${esc(msg)}${cnt}`;
+    return `<div class="lline l${lvCls}" data-type="${lvCls}"><span class="lvl ${lvCls}">${esc(lv||"·")}</span><span class="lsrc" data-tipov="${esc(src||"·")}">${esc(src||"·")}</span><div class="lmsg">${body}</div></div>`;
+  }).join("");
+  return `<p class="lead">Chronological tail of the server log (oldest first, ending at the incident). <b>${errs}</b> ERROR and <b>${warns}</b> WARN lines${collapsed>0?`; <b>${collapsed}</b> repeated line(s) collapsed into counts`:''}.</p>
+  <div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter log…" data-filter="log-list"></span><span class="chip tog" data-type-filter="log-list" data-val="ERROR">${errs} errors</span><span class="chip tog" data-type-filter="log-list" data-val="WARN">${warns} warnings</span><span class="count" data-count="log-list">${grouped.length} lines</span></div>
+  <div class="logscroll" id="log-list">${lines}</div>`;
+}
+
+function configHtml(){
+  const blocks=(D.configs||[]).map(c=>
+    `<div class="codewrap closed"><div class="codehd" data-code><span class="ic">${I.doc}</span><span class="fn">${esc(c.title)}</span><span class="chev2">${I.chev}</span></div><pre>${colorJson(c.content)}</pre></div>`);
+  let mix="";
+  if(D.mixins){
+    const cfgs=D.mixins.configs||[];
+    const total=cfgs.reduce((a,c)=>a+c[1].length,0);
+    const conflicts=MIXCONF.list;
+    const rows=cfgs.map(c=>{
+      const chips=c[1].map(m=>`<span class="mxchip">${esc(m)}</span>`).join(" ");
+      return `<tr><td class="nm" data-sval="${esc(c[0])}">${esc(c[0])}</td><td class="r" data-num="${c[1].length}">${c[1].length}</td><td style="white-space:normal">${chips}</td></tr>`;
+    }).join("");
+    let conf="";
+    if(conflicts&&conflicts.length){
+      const crows=conflicts.map(c=>{
+        const target=c[0], pairs=c[1];
+        const mods=[...new Set(pairs.map(p=>modOfConfig(p[0])))];
+        const head=mods.map(esc).join(' <span class="vs">↔</span> ')+` <span class="dash">·</span> ${esc(String(target).split(".").pop())}`;
+        const chips=pairs.map(p=>`<span class="mxchip warnchip">${esc(p[0])}${p[1]?" → "+esc(p[1]):""}</span>`).join(" ");
+        return `<div class="mxcrow"><div class="mxchead">${head}</div><code>${esc(target)}</code><div class="mxchips">${chips}</div></div>`;
+      }).join("");
+      conf=`<div class="mxconf"><div class="mxchd">${I.warn} ${conflicts.length} class${conflicts.length===1?"":"es"} patched by more than one config</div>
+        <div class="mxcsub">Overlapping mixins can interact in load-order-dependent ways; flag these mods first when debugging odd behaviour.</div>
+        ${crows}</div>`;
+    } else if(conflicts&&cfgs.length>=2){
+      conf=`<div class="mxok">${I.check} No classes patched by more than one config.</div>`;
+    }
+    mix=`<div class="kvcard" style="margin-top:16px"><div class="kvh"><span class="ic">${I.layers}</span><b>Mixins</b><small>${total} applied</small></div>
+      <div class="kv">
+        ${D.mixins.bootstrapper?`<div class="row"><span class="k">Bootstrapper</span><span class="v">${esc(D.mixins.bootstrapper)}</span></div>`:""}
+        <div class="row"><span class="k">Total</span><span class="v">${total} mixins across ${cfgs.length} config${cfgs.length===1?"":"s"}</span></div>
+      </div>
+      ${conf}
+      ${cfgs.length?`<div class="tscroll" style="margin:10px;border-radius:6px"><table class="sortable" id="mx-t"><thead><tr>${thc("Config","The mixin config file that registered these mixins; its name identifies the owning mod",{sort:"text"})}${thc("Count","Mixins registered by this config",{sort:"num",r:true,def:"desc"})}${thc("Mixin classes","All mixin classes this config applies")}</tr></thead><tbody>${rows}</tbody></table></div>`:""}</div>`;
+  }
+  if(!blocks.length&&!mix) return "";
+  return blocks.join("\n")+mix;
+}
+
+function diagSectionsHtml(){
+  const ds=(D.diag||[]).filter(d=>d.title==="Stalled thread"||d.title==="Deadlocked thread");
+  if(!ds.length) return "";
+  const cards=ds.map(d=>{
+    const rows=d.entries.map(e=>`<div class="row"><span class="k">${esc(e[0])}</span><span class="v">${esc(e[1])}</span></div>`).join("");
+    const pre=d.pre?`<pre class="logpre" style="margin:12px 0 0">${esc(d.pre)}</pre>`:"";
+    return `<div class="kvcard" style="margin-bottom:16px"><div class="kvh"><span class="ic">${I.doc}</span><b>${esc(d.title)}</b></div><div class="kv">${rows}</div>${pre}</div>`;
+  }).join("");
+  return cards;
+}
+
+const html=[
+  sec("stalled",I.warn,"Stalled thread","blocked thread at capture",diagSectionsHtml()),
+  sec("diagnosis",I.warn,"Diagnosis","what the recording shows",diagnosisHtml()),
+  sec("metrics",I.pulse,"Key metrics","over the capture window",metricsHtml()),
+  sec("cpu",I.cpu,"CPU & load","per-world attribution",cpuHtml()),
+  sec("engine",I.chip,"Engine systems","per-system tick wall time",engineHtml()),
+  sec("methods",I.fire,"Hot methods","ranked by CPU samples",methodsHtml()),
+  sec("flame",I.fire,"Flame graph","aggregated call tree",flameHtml()),
+  sec("threads",I.threads,"Hot threads",has(D.threadTotal)?D.threadTotal+" live threads":"",threadsHtml()),
+  sec("states",I.layers,"Thread states","state breakdown",statesHtml()),
+  sec("memory",I.heap,"Memory & GC",DV.gcName?("heap + "+DV.gcName):"heap",memHtml()),
+  sec("pluginmetrics",I.pulse,"Plugin metrics",(D.pluginMetrics&&D.pluginMetrics.length?D.pluginMetrics.length+" series":""),pluginMetricsHtml()),
+  sec("network",I.net,"Network","throughput over window",networkHtml()),
+  sec("worlds",I.globe,"Worlds","per-world CPU",worldsHtml()),
+  sec("system",I.chip,"System & hardware","host / JVM",systemHtml()),
+  sec("plugins",I.layers,"Plugins",(D.plugins&&D.plugins.length?D.plugins.length+" loaded":""),pluginsHtml()),
+  sec("assetpacks",I.layers,"Asset packs",(D.assetPacks&&D.assetPacks.length?D.assetPacks.length+" loaded":""),assetPacksHtml()),
+  sec("log",I.term,"Server log","captured tail",logHtml()),
+  sec("config",I.doc,"Config files & mixins","captured configuration",configHtml())
+].join("");
+$("#sections").innerHTML=html;
+
+const navItems=[{id:"top",icon:I.bolt,num:"01",title:"Overview"}].concat(S);
+$("#navlist").innerHTML=navItems.map(s=>`<li><a href="#${s.id==='top'?'':s.id}" data-nav="${s.id}"><span class="nic">${s.icon}</span>${esc(s.title)}<span class="nct">${s.num}</span></a></li>`).join("");
+
+document.querySelectorAll("[data-collapse]").forEach(h=>h.addEventListener("click",e=>{
+  if(e.target.closest("a"))return; h.closest("section").classList.toggle("collapsed");
+  requestAnimationFrame(()=>{renderCharts();pruneBarTips();});
+}));
+document.querySelectorAll("[data-code]").forEach(h=>h.addEventListener("click",()=>h.closest(".codewrap").classList.toggle("closed")));
+
+function applyFilter(id){
+  const inp=document.querySelector(`input[data-filter="${id}"]`);
+  const q=(inp?inp.value:"").toLowerCase();
+  const chip=document.querySelector(`.chip.tog[data-type-filter="${id}"].on`);
+  const type=chip?chip.dataset.val:"";
+  const root=document.getElementById(id); if(!root) return;
+  const items=root.tagName==="TABLE"||root.querySelector("tbody")?root.querySelectorAll("tbody tr"):root.querySelectorAll(":scope > *");
+  let n=0;
+  items.forEach(el=>{
+    const okText=el.textContent.toLowerCase().includes(q);
+    const okType=!type||el.dataset.type===type;
+    const show=okText&&okType; el.style.display=show?"":"none"; if(show)n++;
+  });
+  const c=document.querySelector(`[data-count="${id}"]`); if(c)c.textContent=n+(root.tagName==="DIV"?" lines":" rows");
+  pruneBarTips();
+}
+document.querySelectorAll("input[data-filter]").forEach(inp=>inp.addEventListener("input",()=>applyFilter(inp.dataset.filter)));
+document.querySelectorAll(".chip.tog[data-type-filter]").forEach(chip=>chip.addEventListener("click",()=>{
+  const id=chip.dataset.typeFilter, was=chip.classList.contains("on");
+  document.querySelectorAll(`.chip.tog[data-type-filter="${id}"]`).forEach(c=>c.classList.remove("on"));
+  if(!was) chip.classList.add("on");
+  applyFilter(id);
+}));
+[...new Set([...document.querySelectorAll(".chip.tog.on[data-type-filter]")].map(c=>c.dataset.typeFilter))].forEach(applyFilter);
+
+document.querySelectorAll("table.sortable").forEach(tbl=>{
+  const ths=[...tbl.querySelectorAll("thead th")];
+  const sortBy=(th,ci,asc)=>{
+    const type=th.dataset.sort, tb=tbl.querySelector("tbody");
+    const rows=[...tb.querySelectorAll("tr")];
+    ths.forEach(x=>x.classList.remove("asc","desc"));
+    th.classList.add(asc?"asc":"desc");
+    const val=(tr)=>{
+      const cell=tr.children[ci];
+      if(type==="num"){
+        const dn=cell.getAttribute("data-num");
+        return dn!=null?parseFloat(dn):(parseFloat(cell.textContent.replace(/[^0-9.\-]/g,""))||0);
+      }
+      const sv=cell.getAttribute("data-sval");
+      return (sv!=null?sv:cell.textContent).trim().toLowerCase();
+    };
+    rows.sort((a,b)=>{
+      const av=val(a), bv=val(b);
+      if(type==="num")return asc?av-bv:bv-av;
+      return asc?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));
+    });
+    rows.forEach(r=>tb.appendChild(r));
+    pruneBarTips();
+  };
+  ths.forEach((th,ci)=>{
+    if(!th.classList.contains("sortable"))return;
+    th.addEventListener("click",()=>sortBy(th,ci,!th.classList.contains("asc")));
+  });
+  const di=ths.findIndex(x=>x.classList.contains("asc")||x.classList.contains("desc"));
+  if(di>=0) sortBy(ths[di],di,ths[di].classList.contains("asc"));
+});
+
+document.querySelectorAll(".mname").forEach(el=>el.addEventListener("click",()=>{
+  const tr=el.closest("tr"); tr.classList.toggle("open");
+  const p=tr.querySelector(".mpath"); if(p) p.hidden=!p.hidden;
+}));
+document.querySelectorAll("[data-flamegroup]").forEach(el=>el.addEventListener("click",()=>flameFocusGroup(el.dataset.flamegroup)));
+document.querySelectorAll("[data-cpuworld]").forEach(el=>el.addEventListener("click",()=>setCpuWorld(el.dataset.cpuworld)));
+setCpuWorld("*");
+document.querySelectorAll("[data-allocworld]").forEach(el=>el.addEventListener("click",()=>setAllocWorld(el.dataset.allocworld)));
+setAllocWorld("*");
+
+function buildMarkdown(){
+  const T=DV.samples, ser=D.series||{}, L=[];
+  L.push(`# Incident ${D.incident.id}`,"");
+  L.push(`**${D.incident.severity}** · ${D.incident.trigger}${has(D.incident.stallMs)?` · heartbeat stalled ${D.incident.stallMs}ms`:""}${D.incident.worldShort?` on world ${D.incident.worldShort}`:""}`);
+  L.push(`Captured ${D.incident.created}${DV.win?` · window ${DV.win}`:""}${T?` · ${fmt(T)} samples`:""}${has(D.incident.players)?` · ${D.incident.players} players`:""}`,"");
+  if(has(D.incident.note)) L.push(`> ${D.incident.note}`,"");
+  const diag=[];
+  if(DV.topWorld&&T) diag.push(`- Busiest world thread: ${worldLabel(DV.topWorld.name)} (${pct(DV.topWorld.samples,T).toFixed(1)}% of samples)`);
+  if(DV.topMethod&&T) diag.push(`- Top sampled frame: ${leafName(DV.topMethod[1])} (${pct(DV.topMethod[0],T).toFixed(2)}%)`);
+  if(DV.stalled&&has(DV.stalled.samples)&&T) diag.push(`- Stalled world ${worldLabel(DV.stalled.name)} ranks #${DV.stalledRank} of ${DV.worlds.length} by CPU`);
+  if(D.gc) diag.push(`- GC: ${DV.gcName||"GC"}, ${D.gc.collections} collections, max pause ${D.gc.maxPauseMs}ms`);
+  if(D.threadStates) diag.push(`- Threads: ${D.threadTotal??"?"} live, ${D.threadStates.BLOCKED||0} blocked`);
+  if(D.ram&&D.sys&&has(D.sys.ramTotal)) diag.push(`- Memory: RSS ${gb(D.ram.rssLast).toFixed(1)} GB of ${gb(D.sys.ramTotal).toFixed(1)} GB${D.heap?`; heap peak ${gib(D.heap.peak).toFixed(1)} GiB`:""}`);
+  if(diag.length){ L.push(`## Diagnosis`); L.push(...diag); L.push(""); }
+  if(D.deadlocked&&D.deadlocked.length){
+    L.push(`## Deadlock detected (${D.deadlocked.length})`);
+    D.deadlocked.forEach(d=>L.push(`- ${d}`));
+    L.push("");
+  }
+  if(D.sys){
+    L.push(`## Environment`);
+    if(D.sys.os) L.push(`- OS: ${D.sys.os}${D.sys.arch?` (${D.sys.arch})`:""}`);
+    if(D.sys.cpuBrand||has(D.sys.cpuCores)) L.push(`- CPU: ${D.sys.cpuBrand||""}${has(D.sys.cpuCores)?` (${D.sys.cpuCores} cores)`:""}${D.cpu?`, peak ${D.cpu.machMax.toFixed(1)}%`:""}`);
+    if(D.sys.jvm) L.push(`- JVM: ${D.sys.jvm}${DV.gcName?`, ${DV.gcName} GC`:""}`);
+    if(D.sys.server||D.sys.hytale) L.push(`- Server: ${[D.sys.server,D.sys.hytale?"Hytale "+D.sys.hytale:null,D.blackboxVersion?"Blackbox v"+D.blackboxVersion:null].filter(Boolean).join(" · ")}`);
+    if(D.sys.disk&&has(D.sys.disk.total)&&D.sys.disk.total>0){
+      let dl=`- Disk: ${gb(D.sys.disk.free).toFixed(1)} GB free of ${gb(D.sys.disk.total).toFixed(1)} GB`;
+      if(DV.diskG){const st=sstat(DV.diskG);dl+=` (window min ${st.min.toFixed(1)} / avg ${st.avg.toFixed(1)} / max ${st.max.toFixed(1)} GB free)`;}
+      L.push(dl);
+      const dRisk=diskRisk();
+      if(dRisk) L.push(`- WARNING: low disk space (${gb(dRisk.free).toFixed(1)} GB free of ${gb(dRisk.total).toFixed(1)} GB); the JFR recording and incident bundles can fail to write`);
+    }
+    {
+      const dio=D.series||{};
+      const dstat=s=>{const st=sstat(s);return `min ${st.min.toFixed(1)} / avg ${st.avg.toFixed(1)} / max ${st.max.toFixed(1)} MB/s`;};
+      const ps=[];
+      if(dio.diskWrite) ps.push(`write ${dstat(dio.diskWrite)}`);
+      if(dio.diskRead) ps.push(`read ${dstat(dio.diskRead)}`);
+      if(ps.length) L.push(`- Disk I/O: ${ps.join("; ")}`);
+    }
+    if(has(D.sys.hostMemUsed)&&D.sys.hostMemUsed>=0&&has(D.sys.ramTotal)&&D.sys.ramTotal>0)
+      L.push(`- Host memory: ${gb(D.sys.hostMemUsed).toFixed(1)} GB of ${gb(D.sys.ramTotal).toFixed(1)} GB used`);
+    if(D.sys.swap&&has(D.sys.swap.total)&&D.sys.swap.total>0){
+      const swUsed=Math.max(0,D.sys.swap.total-(D.sys.swap.free||0));
+      if(swUsed>0) L.push(`- Swap: ${fmtBytes(swUsed)} used of ${fmtBytes(D.sys.swap.total)}`);
+    }
+    if(D.sys.nonHeap&&has(D.sys.nonHeap.used))
+      L.push(`- Non-heap: ${fmtBytes(D.sys.nonHeap.used)} used / ${fmtBytes(D.sys.nonHeap.committed)} committed`);
+    if(D.net&&Array.isArray(D.net.others)&&D.net.others.length)
+      D.net.others.forEach(o=>L.push(`- Net ${o[0]}: in ${Number(o[1]).toFixed(1)}/${Number(o[2]).toFixed(1)} · out ${Number(o[3]).toFixed(1)}/${Number(o[4]).toFixed(1)} Mb/s (avg/peak)`));
+    if(D.sys.container){
+      const c=D.sys.container;
+      const parts=[c.runtime,c.type,has(c.cpuLimit)&&c.cpuLimit>0?c.cpuLimit.toFixed(1)+" cores":null,
+        has(c.memLimit)&&c.memLimit>0?fmtBytes(c.memLimit)+" memory limit":null].filter(Boolean);
+      if(parts.length) L.push(`- Container: ${parts.join(" · ")}`);
+      const cRisk=containerRisk();
+      if(cRisk) L.push(`- WARNING: heap -Xmx (${gib(cRisk.xmx).toFixed(1)} GiB) is at or above the container memory limit (${gib(cRisk.lim).toFixed(1)} GiB)`);
+    }
+    L.push("");
+  }
+  const cmpRows=[...document.querySelectorAll("[data-cmp]")];
+  if(cmpRows.length){
+    L.push(`## Baseline vs incident window`,"| Metric | Baseline avg | Incident avg | Delta |","|---|---|---|---|");
+    cmpRows.forEach(tr=>{
+      const cells=[...tr.children].map(td=>td.textContent.trim());
+      L.push(`| ${cells[0]} | ${cells[1]} | ${cells[2]} | ${cells[3]} |`);
+    });
+    L.push("");
+  }
+  if(D.hotMethods&&D.hotMethods.length&&T){
+    L.push(`## Hot methods`,"| # | Method | Samples | Self% |","|---|---|---|---|");
+    D.hotMethods.slice(0,10).forEach((m,i)=>L.push(`| ${i+1} | ${m[1]} | ${fmt(m[0])} | ${pct(m[0],T).toFixed(2)}% |`));
+    L.push("");
+  }
+  if(D.hotThreads&&D.hotThreads.length&&T){
+    L.push(`## Hot threads`,"| Thread | State | Samples | CPU% | Top method |","|---|---|---|---|---|");
+    D.hotThreads.slice(0,10).forEach(ht=>L.push(`| ${ht[2]} | ${ht[1]} | ${fmt(ht[0])} | ${pct(ht[0],T).toFixed(1)}% | ${ht[3]?leafName(ht[3]):"-"} |`));
+    L.push("");
+  }
+  if(D.subsystems&&D.subsystems.length&&T){
+    L.push(`## CPU by engine subsystem`,"| Subsystem | Samples | Share |","|---|---|---|");
+    D.subsystems.slice(0,10).forEach(s=>L.push(`| ${s[0]} | ${fmt(s[1])} | ${pct(s[1],T).toFixed(1)}% |`));
+    L.push("");
+  }
+  if(D.modCpu&&D.modCpu.length&&T){
+    L.push(`## CPU by mod`,"| Mod | Samples | Share | Dominant method | Top threads |","|---|---|---|---|---|");
+    D.modCpu.slice(0,10).forEach(m=>L.push(`| ${m[0]} | ${fmt(m[1])} | ${pct(m[1],T).toFixed(1)}% | ${m[2]||"-"} | ${(m[3]&&m[3].length)?m[3].map(t=>`${t[0]} ${(100*t[1]/Math.max(1,m[1])).toFixed(0)}%`).join("; "):"-"} |`));
+    L.push("");
+  }
+  if(D.gcCauses&&D.gcCauses.length){
+    L.push(`## GC causes`,"| Cause | Collections | Total pause ms |","|---|---|---|");
+    D.gcCauses.forEach(c=>L.push(`| ${c[0]} | ${fmt(c[1])} | ${Number(c[2]).toFixed(1)} |`));
+    L.push("");
+  }
+  if(Array.isArray(D.memPools)&&D.memPools.length){
+    const pv=v=>(has(v)&&v>=0)?fmtBytes(v):"-";
+    L.push(`## Memory pools`,"| Pool | Used | Committed | Max | At last GC |","|---|---|---|---|---|");
+    [...D.memPools].sort((a,b)=>((b[4]>=0)-(a[4]>=0))).slice(0,8).forEach(p=>
+      L.push(`| ${p[0]} | ${pv(p[1])} | ${pv(p[2])} | ${pv(p[3])} | ${pv(p[4])} |`));
+    L.push("");
+  }
+  if(D.alloc){
+    const top=(m,n)=>(m||[]).slice(0,n).map(e=>`- ${e[0]}: ${fmtBytes(e[1])}${D.alloc.total?` (${pct(e[1],D.alloc.total).toFixed(1)}%)`:""}`);
+    const sub=top(D.alloc.bySubsystem,5), mod=top(D.alloc.byMod,5);
+    if(sub.length||mod.length){
+      L.push(`## Allocation pressure (sampled)`);
+      if(sub.length){ L.push(`By subsystem:`); L.push(...sub); }
+      if(mod.length){ L.push(`By mod:`); L.push(...mod); }
+      L.push("");
+    }
+  }
+  if(D.retained&&D.retained.length){
+    L.push(`## Long-lived allocations (leak candidates)`,"| Class | Samples | Allocation site |","|---|---|---|");
+    D.retained.slice(0,10).forEach(r=>L.push(`| ${r[0]} | ${fmt(r[1])} | ${r[2]||"-"} |`));
+    L.push("");
+  }
+  if(D.heapHistogram&&D.heapHistogram.length){
+    L.push(`## Heap histogram (point in time)`,"| Class | Instances | Bytes |","|---|---|---|");
+    D.heapHistogram.slice(0,10).forEach(h=>L.push(`| ${h[0]} | ${fmt(h[1])} | ${fmtBytes(h[2])} |`));
+    L.push("");
+  }
+  if(D.slowIo&&D.slowIo.length){
+    L.push(`## Slow file operations`,"| Path | Kind | Duration ms | Bytes |","|---|---|---|---|");
+    [...D.slowIo].sort((a,b)=>b[1]-a[1]).slice(0,10).forEach(r=>
+      L.push(`| ${r[0]} | ${r[3]} | ${Number(r[1]).toFixed(0)} | ${fmtBytes(r[2])} |`));
+    L.push("");
+  }
+  if(D.tickSystems&&D.tickSystems.length){
+    const BUDGET=(D.tps&&D.tps.target>0)?1000/D.tps.target:100/3;
+    L.push(`## Engine systems (tick cost)`,"| System | World | avg 1m ms | max 1m ms | % of budget |","|---|---|---|---|---|");
+    [...D.tickSystems].sort((a,b)=>b[2]-a[2]).slice(0,10).forEach(r=>
+      L.push(`| ${r[0]} | ${worldLabel(r[1])} | ${Number(r[2]).toFixed(2)} | ${Number(r[3]).toFixed(2)} | ${(100*r[2]/BUDGET).toFixed(1)}% |`));
+    L.push("");
+  }
+  if(D.pluginMetrics&&D.pluginMetrics.length){
+    L.push(`## Plugin metrics`,"| Metric | Kind | Min | Avg | Max |","|---|---|---|---|---|");
+    D.pluginMetrics.forEach(m=>{
+      const st=sstat(m.series);
+      L.push(`| ${m.name} | ${m.kind} | ${st.min.toFixed(1)} | ${st.avg.toFixed(1)} | ${st.max.toFixed(1)} |`);
+    });
+    L.push("");
+  }
+  if(Array.isArray(D.worldTps)&&D.worldTps.length){
+    L.push(`## Tick rate by world`);
+    D.worldTps.forEach(w=>{const st=sstat(w.series);L.push(`- ${worldLabel(w.name)}: avg ${st.avg.toFixed(1)} / min ${st.min.toFixed(1)} / max ${st.max.toFixed(1)} tps`);});
+    L.push("");
+  }
+  if(DV.worlds.length&&T){
+    const hasPct=DV.worlds.some(w=>has(w.msptP50)||has(w.msptP95)||has(w.msptMax));
+    const pc=v=>has(v)&&v>=0?v.toFixed(1):"-";
+    L.push(`## Worlds`,
+      hasPct?"| World | Kind | MSPT med | p95 | max | Samples | CPU% |":"| World | Kind | Samples | CPU% |",
+      hasPct?"|---|---|---|---|---|---|---|":"|---|---|---|---|");
+    DV.worlds.forEach(w=>{
+      const base=`| ${worldLabel(w.name)}${w.stalled?" (STALLED)":""} | ${String(w.name).indexOf("instance-")===0?"instance":"persistent"} |`;
+      const tail=` ${has(w.samples)?fmt(w.samples):"-"} | ${has(w.samples)?pct(w.samples,T).toFixed(1)+"%":"-"} |`;
+      L.push(hasPct?base+` ${pc(has(w.msptP50)?w.msptP50:w.mspt)} | ${pc(w.msptP95)} | ${pc(w.msptMax)} |`+tail:base+tail);
+    });
+    L.push("");
+  }
+  if((D.entities&&D.entities.length)||ser.entities){
+    L.push(`## Entities`);
+    if(ser.entities){const st=sstat(ser.entities);L.push(`Total over window: min ${fmt(st.min)} / avg ${fmt(Math.round(st.avg))} / max ${fmt(st.max)}`);}
+    (D.entities||[]).forEach(e=>L.push(`- ${worldLabel(e[0])}: ${(e[1]||[]).map(t=>`${t[0]} x${t[1]}`).join(", ")}`));
+    L.push("");
+  }
+  if(D.plugins&&D.plugins.length){
+    const incompat=D.plugins.filter(p=>p[5]==="INCOMPATIBLE");
+    L.push(`## Plugins`,`${D.plugins.length} loaded (${D.plugins.filter(p=>p[3]).length} core, ${D.plugins.filter(p=>!p[3]).length} community)`);
+    incompat.forEach(p=>L.push(`- INCOMPATIBLE: ${p[1]} ${p[2]} declares server range ${p[4]||"?"}`));
+    L.push("");
+  }
+  if(D.assetPacks&&D.assetPacks.length){
+    L.push(`## Asset packs`,`${D.assetPacks.length} loaded`);
+    D.assetPacks.forEach(p=>L.push(`- ${p[1]} ${p[2]}${p[5]==="INCOMPATIBLE"?` · INCOMPATIBLE (declares server range ${p[4]||"?"})`:""}`));
+    L.push("");
+  }
+  if(MIXCONF.list&&MIXCONF.list.length){
+    L.push(`## Mixin conflicts`);
+    MIXCONF.list.forEach(c=>L.push(`- ${c[0]}: ${c[1].map(p=>p[1]?`${p[0]} (${p[1]})`:p[0]).join(" vs ")}`));
+    L.push("");
+  }
+  if(Array.isArray(D.events)&&D.events.length){
+    const byType={};
+    D.events.forEach(e=>{
+      const m=/×(\d+)$/.exec(e[2]||"");
+      byType[e[1]]=(byType[e[1]]||0)+(m?parseInt(m[1],10):1);
+    });
+    L.push(`## Events in window`,Object.entries(byType).map(([k,v])=>`${v} ${k.toUpperCase()}`).join(" · "),"");
+  }
+  return L.join("\n").trimEnd();
+}
+(function(){
+  const btn=$("#copyMd"); if(!btn) return;
+  btn.addEventListener("click",async()=>{
+    const md=buildMarkdown();
+    try{ await navigator.clipboard.writeText(md); }
+    catch(e){ const ta=document.createElement("textarea"); ta.value=md; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");}catch(_){} ta.remove(); }
+    btn.classList.add("ok"); btn.innerHTML=`${I.check} Copied`;
+    setTimeout(()=>{btn.classList.remove("ok"); btn.innerHTML=`${I.copy} Copy as Markdown`;},1600);
+  });
+})();
+
+function clockToSec(t){const p=String(t).split(":").map(Number);return (p[0]||0)*3600+(p[1]||0)*60+(p[2]||0);}
+function secToClock(s){s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;const z=v=>String(v).padStart(2,"0");return z(h)+":"+z(m)+":"+z(x);}
+buildPresetRow();
+renderCharts();
+pruneBarTips();
+$("#zoomchip").addEventListener("click",()=>setZoom(null));
+$("#totop").addEventListener("click",()=>window.scrollTo({top:0,behavior:"smooth"}));
+window.addEventListener("scroll",()=>{$("#totop").style.display=scrollY>600?"flex":"none";},{passive:true});
+let RSZ;
+window.addEventListener("resize",()=>{clearTimeout(RSZ);RSZ=setTimeout(()=>{renderCharts();pruneBarTips();},150);});
+window.BBZOOM={get:()=>ZOOM,set:setZoom};
+window.BBCHARTS=CHARTS;
+
+const TIP=document.createElement("div"); TIP.id="tipbox"; document.body.appendChild(TIP);
+let TIP_ANCHOR=null;
+function hideTip(){TIP_ANCHOR=null;TIP.style.display="none";}
+document.addEventListener("mouseover",e=>{
+  const a=e.target.closest?e.target.closest("[data-tip]"):null;
+  if(a===TIP_ANCHOR) return;
+  if(!a){ if(e.target.closest&&e.target.closest(".bbtipcv")) return; hideTip();return;}
+  TIP_ANCHOR=a;
+  TIP.textContent=a.getAttribute("data-tip");
+  TIP.style.display="block";
+  const r=a.getBoundingClientRect(), tw=TIP.offsetWidth, th=TIP.offsetHeight, m=8;
+  let x=r.left+r.width/2-tw/2; x=Math.max(m,Math.min(innerWidth-tw-m,x));
+  let y=r.bottom+9;
+  if(y+th>innerHeight-m) y=r.top-th-9;
+  y=Math.max(m,Math.min(y,innerHeight-th-m));
+  TIP.style.left=x+"px"; TIP.style.top=y+"px";
+});
+document.addEventListener("mouseout",e=>{ if(!e.relatedTarget) hideTip(); });
+document.addEventListener("scroll",hideTip,true);
+
+initFlame();
+initThreadTimeline();
+
+const spy=new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting){ const id=e.target.id||"top";
+    document.querySelectorAll(".navlist a").forEach(a=>a.classList.toggle("on",a.dataset.nav===id)); }});
+},{rootMargin:"-12% 0px -78% 0px"});
+const hdr=document.querySelector("header"); hdr.id="top"; spy.observe(hdr);
+document.querySelectorAll("section").forEach(s=>spy.observe(s));
+</script>
+</body>
+</html>
