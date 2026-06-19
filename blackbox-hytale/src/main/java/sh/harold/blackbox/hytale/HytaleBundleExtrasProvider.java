@@ -33,37 +33,112 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
     private static final int MAX_LOG_TAIL_BYTES = 256 * 1024;
 
     private final HeartbeatRegistry heartbeatRegistry;
-    private final int logTailLines;
+    private final java.util.function.IntSupplier logTailLines;
+    private final java.util.function.BooleanSupplier includeServerLog;
+    private final Path metricsDir;
+    private final PlayerNameMasker nameMasker;
+    private final java.util.function.Supplier<List<String>> spacedDumps;
 
-    HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry, int logTailLines) {
+    HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry, int logTailLines, Path metricsDir) {
+        this(heartbeatRegistry, () -> logTailLines, () -> true, metricsDir, new PlayerNameMasker(),
+            () -> List.of());
+    }
+
+    HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry,
+                               java.util.function.IntSupplier logTailLines,
+                               java.util.function.BooleanSupplier includeServerLog, Path metricsDir) {
+        this(heartbeatRegistry, logTailLines, includeServerLog, metricsDir, new PlayerNameMasker(),
+            () -> List.of());
+    }
+
+    HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry,
+                               java.util.function.IntSupplier logTailLines,
+                               java.util.function.BooleanSupplier includeServerLog, Path metricsDir,
+                               PlayerNameMasker nameMasker,
+                               java.util.function.Supplier<List<String>> spacedDumps) {
         this.heartbeatRegistry = heartbeatRegistry;
         this.logTailLines = logTailLines;
+        this.includeServerLog = includeServerLog;
+        this.metricsDir = metricsDir;
+        this.nameMasker = nameMasker;
+        this.spacedDumps = spacedDumps;
     }
 
     @Override
     public List<BundleAttachment> extras(IncidentReport report, TriggerEvent triggerEvent) {
-        List<BundleAttachment> extras = new ArrayList<>();
+        List<BundleAttachment> extras = new ArrayList<>(configExtras());
 
-        extras.add(new BundleAttachment("extras/server.txt",
-            buildServerText().getBytes(StandardCharsets.UTF_8)));
-        extras.add(new BundleAttachment("extras/plugins.txt",
-            buildPluginsText().getBytes(StandardCharsets.UTF_8)));
         extras.add(new BundleAttachment("extras/worlds.txt",
             buildWorldsText().getBytes(StandardCharsets.UTF_8)));
         extras.add(new BundleAttachment("extras/heartbeats.txt",
             buildHeartbeatsText().getBytes(StandardCharsets.UTF_8)));
-        extras.add(new BundleAttachment("extras/threads.txt",
-            ThreadDumper.dump().getBytes(StandardCharsets.UTF_8)));
+        extras.addAll(threadDumpAttachments(spacedDumps.get()));
 
-        if (logTailLines > 0) {
-            String logTail = buildServerLogTail();
+        if (includeServerLog.getAsBoolean() && logTailLines.getAsInt() > 0) {
+            String logTail = nameMasker.maskText(buildServerLogTail());
             if (!logTail.isEmpty()) {
                 extras.add(new BundleAttachment("extras/server-log.txt",
                     logTail.getBytes(StandardCharsets.UTF_8)));
             }
         }
 
+        extras.addAll(historicalExtras());
         return extras;
+    }
+
+    @Override
+    public List<BundleAttachment> configExtras() {
+        List<BundleAttachment> out = new ArrayList<>();
+        out.add(new BundleAttachment("extras/server.txt",
+            buildServerText().getBytes(StandardCharsets.UTF_8)));
+        out.add(new BundleAttachment("extras/plugins.txt",
+            buildPluginsText().getBytes(StandardCharsets.UTF_8)));
+        return out;
+    }
+
+    @Override
+    public List<BundleAttachment> historicalExtras() {
+        List<BundleAttachment> out = new ArrayList<>();
+        if (metricsDir == null || !Files.isDirectory(metricsDir)) {
+            return out;
+        }
+        try (Stream<Path> files = Files.list(metricsDir)) {
+            List<Path> recent = files
+                .filter(Files::isRegularFile)
+                .filter(p -> {
+                    String name = p.getFileName().toString();
+                    return name.startsWith("health-") && name.endsWith(".csv");
+                })
+                .sorted(Comparator.comparing((Path p) -> p.getFileName().toString()).reversed())
+                .limit(2)
+                .toList();
+            for (Path file : recent) {
+                out.add(new BundleAttachment("extras/metrics/" + file.getFileName(),
+                    Files.readAllBytes(file)));
+            }
+        } catch (IOException e) {
+            LOGGER.log(System.Logger.Level.WARNING, "Failed to attach metrics CSV.", e);
+        }
+        return out;
+    }
+
+    static List<BundleAttachment> threadDumpAttachments(List<String> dumps) {
+        List<BundleAttachment> out = new ArrayList<>();
+        if (dumps.isEmpty()) {
+            out.add(new BundleAttachment("extras/threads.txt",
+                ThreadDumper.dump().getBytes(StandardCharsets.UTF_8)));
+        } else if (dumps.size() == 1) {
+            out.add(new BundleAttachment("extras/threads.txt",
+                dumps.get(0).getBytes(StandardCharsets.UTF_8)));
+        } else {
+            int index = 1;
+            for (String dump : dumps) {
+                out.add(new BundleAttachment("extras/threads-" + index + ".txt",
+                    dump.getBytes(StandardCharsets.UTF_8)));
+                index++;
+            }
+        }
+        return out;
     }
 
     private String buildServerText() {
@@ -75,8 +150,7 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
             out.append("server.name=<unavailable>\n");
         }
         try {
-            out.append("hytale.version=").append(HytaleServer.class
-                .getPackage().getImplementationVersion()).append('\n');
+            out.append("hytale.version=").append(HytaleServerVersion.get()).append('\n');
         } catch (Exception e) {
             out.append("hytale.version=<unavailable>\n");
         }
@@ -135,12 +209,25 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
     }
 
     private String buildServerLogTail() {
-        Path logsDir = Paths.get("logs");
-        if (!Files.isDirectory(logsDir)) {
+        Path latestLog = latestServerLog();
+        if (latestLog == null) {
             return "";
         }
+        try {
+            return readTail(latestLog, logTailLines.getAsInt());
+        } catch (IOException e) {
+            LOGGER.log(System.Logger.Level.WARNING, "Failed to read server log tail.", e);
+            return "";
+        }
+    }
+
+    static Path latestServerLog() {
+        Path logsDir = Paths.get("logs");
+        if (!Files.isDirectory(logsDir)) {
+            return null;
+        }
         try (Stream<Path> logFiles = Files.list(logsDir)) {
-            Path latestLog = logFiles
+            return logFiles
                 .filter(p -> p.getFileName().toString().endsWith(".log"))
                 .max(Comparator.comparingLong(p -> {
                     try {
@@ -150,15 +237,9 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
                     }
                 }))
                 .orElse(null);
-
-            if (latestLog == null) {
-                return "";
-            }
-
-            return readTail(latestLog, logTailLines);
         } catch (IOException e) {
-            LOGGER.log(System.Logger.Level.WARNING, "Failed to read server log tail.", e);
-            return "";
+            LOGGER.log(System.Logger.Level.WARNING, "Failed to locate server log.", e);
+            return null;
         }
     }
 

@@ -4,8 +4,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import com.hypixel.hytale.codec.Codec;
 import com.hypixel.hytale.codec.KeyedCodec;
@@ -17,6 +22,9 @@ import sh.harold.blackbox.core.config.BlackboxConfig;
 import sh.harold.blackbox.core.env.TextRedactor;
 import sh.harold.blackbox.core.notify.discord.DiscordWebhookConfig;
 import sh.harold.blackbox.core.retention.RetentionPolicy;
+import sh.harold.blackbox.core.trigger.DetectorPolicy;
+import sh.harold.blackbox.core.trigger.ModulePolicy;
+import sh.harold.blackbox.core.trigger.TriggerKind;
 import sh.harold.blackbox.core.trigger.TriggerPolicy;
 
 /**
@@ -30,11 +38,29 @@ final class HytaleBlackboxConfig {
     private static final Duration DEFAULT_JFR_MAX_AGE = Duration.ofMinutes(15);
     private static final long DEFAULT_JFR_MAX_SIZE_BYTES = 256L * 1024L * 1024L;
     private static final String DEFAULT_JFR_RECORDING_NAME = "blackbox";
+    private static final Duration DEFAULT_JFR_POST_INCIDENT_MAX_WAIT = Duration.ofMinutes(2);
+    private static final int DEFAULT_JFR_THREAD_DUMP_COUNT = 3;
+    private static final Duration DEFAULT_JFR_THREAD_DUMP_INTERVAL = Duration.ofSeconds(10);
+    private static final Duration DEFAULT_JFR_SNAPSHOT_INTERVAL = Duration.ofMinutes(10);
+    private static final Duration DEFAULT_JFR_SAMPLE_INTERVAL = Duration.ofSeconds(10);
+    private static final String DEFAULT_JFR_CONFIGURATION = "default";
+    private static final boolean DEFAULT_JFR_OLD_OBJECT_SAMPLING = false;
+
+    private static final boolean DEFAULT_METRICS_ENABLED = false;
+    private static final int DEFAULT_METRICS_RETENTION_DAYS = 7;
+    private static final boolean DEFAULT_METRICS_CPU = true;
+    private static final boolean DEFAULT_METRICS_ALLOCATION = false;
+    private static final boolean DEFAULT_PROMETHEUS_ENABLED = false;
+    private static final int DEFAULT_PROMETHEUS_PORT = 9099;
+    private static final String DEFAULT_PROMETHEUS_BIND = "127.0.0.1";
 
     private static final Duration DEFAULT_TRIGGER_COOLDOWN = Duration.ofSeconds(30);
     private static final Duration DEFAULT_TRIGGER_DEBOUNCE = Duration.ofSeconds(2);
     private static final long DEFAULT_STALL_DEGRADED_MS = 2_000L;
     private static final long DEFAULT_STALL_CRITICAL_MS = 10_000L;
+    private static final long DEFAULT_TICK_AVG_DEGRADED_MS = 100L;
+    private static final long DEFAULT_TICK_AVG_CRITICAL_MS = 250L;
+    private static final DetectorPolicy DEFAULT_DETECTORS = DetectorPolicy.defaults();
 
     private static final int DEFAULT_RETENTION_MAX_COUNT = 25;
     private static final long DEFAULT_RETENTION_MAX_TOTAL_BYTES = 1024L * 1024L * 1024L;
@@ -45,12 +71,19 @@ final class HytaleBlackboxConfig {
     private static final Duration DEFAULT_DISCORD_REQUEST_TIMEOUT = Duration.ofSeconds(10);
     private static final String DEFAULT_DISCORD_USERNAME = "Blackbox";
 
-    private static final boolean DEFAULT_WEB_ENABLED = false;
-
     private static final boolean DEFAULT_CAPTURE_ENABLED = true;
     private static final boolean DEFAULT_CAPTURE_ALLOW_PLUGIN_EXTRAS = true;
     private static final int DEFAULT_CAPTURE_LOG_TAIL_LINES = 500;
+    private static final boolean DEFAULT_CAPTURE_HEAP_HISTOGRAM = false;
+    private static final boolean DEFAULT_CAPTURE_INCLUDE_SERVER_LOG = false;
+    private static final boolean DEFAULT_CAPTURE_INCLUDE_SERVER_CONFIG = false;
+    private static final boolean DEFAULT_CAPTURE_INCLUDE_MOD_CONFIGS = false;
+    private static final boolean DEFAULT_CAPTURE_ALLOW_MOD_CONFIG_OPT_IN = true;
+    private static final boolean DEFAULT_CAPTURE_SANITIZE_LOG = true;
     private static final List<String> DEFAULT_CAPTURE_REDACT_PATTERNS = TextRedactor.DEFAULT_PATTERNS;
+    private static final List<String> FRAMEWORK_PREFIXES = List.of("com.hypixel.hytale.");
+    private static final List<String> DEFAULT_CAPTURE_ARTIFACTS =
+            List.of("jfr", "report", "env", "threads", "serverLog", "plugins", "worlds", "heartbeats", "server");
 
     private HytaleBlackboxConfig() {
     }
@@ -103,7 +136,9 @@ final class HytaleBlackboxConfig {
             DEFAULT_TRIGGER_COOLDOWN,
             DEFAULT_TRIGGER_DEBOUNCE,
             DEFAULT_STALL_DEGRADED_MS,
-            DEFAULT_STALL_CRITICAL_MS
+            DEFAULT_STALL_CRITICAL_MS,
+            DEFAULT_TICK_AVG_DEGRADED_MS,
+            DEFAULT_TICK_AVG_CRITICAL_MS
         );
         RetentionPolicy retentionPolicy = new RetentionPolicy(
             DEFAULT_RETENTION_MAX_COUNT,
@@ -124,9 +159,11 @@ final class HytaleBlackboxConfig {
             triggerPolicy,
             new CapturePolicy(retentionPolicy, DEFAULT_CAPTURE_ENABLED,
                 DEFAULT_CAPTURE_ALLOW_PLUGIN_EXTRAS, DEFAULT_CAPTURE_LOG_TAIL_LINES,
-                DEFAULT_CAPTURE_REDACT_PATTERNS),
+                DEFAULT_CAPTURE_REDACT_PATTERNS).withFrameworkPrefixes(FRAMEWORK_PREFIXES),
             discord,
-            DEFAULT_WEB_ENABLED
+            DEFAULT_JFR_POST_INCIDENT_MAX_WAIT,
+            DEFAULT_JFR_SNAPSHOT_INTERVAL,
+            DEFAULT_JFR_CONFIGURATION
         );
     }
 
@@ -137,7 +174,7 @@ final class HytaleBlackboxConfig {
         public Retention retention = new Retention();
         public Capture capture = new Capture();
         public Discord discord = new Discord();
-        public Web web = new Web();
+        public Metrics metrics = new Metrics();
 
         static final BuilderCodec<FileConfig> CODEC = BuilderCodec
             .builder(FileConfig.class, FileConfig::new)
@@ -171,11 +208,11 @@ final class HytaleBlackboxConfig {
                     c.discord = v;
                 }
             }, (c, ei) -> c.discord).add()
-            .append(new KeyedCodec<>("Web", Web.CODEC), (c, v, ei) -> {
+            .append(new KeyedCodec<>("Metrics", Metrics.CODEC), (c, v, ei) -> {
                 if (v != null) {
-                    c.web = v;
+                    c.metrics = v;
                 }
-            }, (c, ei) -> c.web).add()
+            }, (c, ei) -> c.metrics).add()
             .build();
 
         BlackboxConfig toCoreConfig(System.Logger logger) {
@@ -186,10 +223,10 @@ final class HytaleBlackboxConfig {
             Retention retentionCfg = this.retention == null ? new Retention() : this.retention;
             Capture captureCfg = this.capture == null ? new Capture() : this.capture;
             Discord discordCfg = this.discord == null ? new Discord() : this.discord;
-            Web webCfg = this.web == null ? new Web() : this.web;
+            Metrics metricsCfg = this.metrics == null ? new Metrics() : this.metrics;
 
-            Duration jfrMaxAge = positiveDuration(jfrCfg.maxAge, DEFAULT_JFR_MAX_AGE, "Jfr.MaxAge", logger);
-            long jfrMaxSizeBytes = positiveLong(jfrCfg.maxSizeBytes, DEFAULT_JFR_MAX_SIZE_BYTES, "Jfr.MaxSizeBytes", logger);
+            Duration jfrMaxAge = nonNegativeDuration(jfrCfg.maxAge, DEFAULT_JFR_MAX_AGE, "Jfr.MaxAge", logger);
+            long jfrMaxSizeBytes = nonNegativeLong(jfrCfg.maxSizeBytes, DEFAULT_JFR_MAX_SIZE_BYTES, "Jfr.MaxSizeBytes", logger);
             String recordingName = nonBlankString(
                 jfrCfg.recordingName,
                 DEFAULT_JFR_RECORDING_NAME,
@@ -197,6 +234,36 @@ final class HytaleBlackboxConfig {
                 logger
             );
             List<String> jfrDisabledEvents = jfrCfg.disabledEvents == null ? List.of() : List.copyOf(jfrCfg.disabledEvents);
+            Duration postIncidentMaxWait = nonNegativeDuration(
+                jfrCfg.postIncidentMaxWait,
+                DEFAULT_JFR_POST_INCIDENT_MAX_WAIT,
+                "Jfr.PostIncidentMaxWait",
+                logger
+            );
+            Duration threadDumpInterval = nonNegativeDuration(
+                jfrCfg.threadDumpInterval,
+                DEFAULT_JFR_THREAD_DUMP_INTERVAL,
+                "Jfr.ThreadDumpInterval",
+                logger
+            );
+            Duration snapshotInterval = nonNegativeDuration(
+                jfrCfg.snapshotInterval,
+                DEFAULT_JFR_SNAPSHOT_INTERVAL,
+                "Jfr.SnapshotInterval",
+                logger
+            );
+            String jfrConfiguration = nonBlankString(
+                jfrCfg.configuration,
+                DEFAULT_JFR_CONFIGURATION,
+                "Jfr.Configuration",
+                logger
+            );
+            Duration sampleInterval = nonNegativeDuration(
+                jfrCfg.sampleInterval,
+                DEFAULT_JFR_SAMPLE_INTERVAL,
+                "Jfr.SampleInterval",
+                logger
+            );
 
             Duration cooldown = nonNegativeDuration(
                 triggerCfg.cooldown,
@@ -208,6 +275,12 @@ final class HytaleBlackboxConfig {
                 triggerCfg.debounce,
                 DEFAULT_TRIGGER_DEBOUNCE,
                 "Trigger.Debounce",
+                logger
+            );
+            Set<TriggerKind> cooldownExemptKinds = triggerKinds(
+                triggerCfg.cooldownExemptKinds,
+                TriggerPolicy.DEFAULT_COOLDOWN_EXEMPT_KINDS,
+                "Trigger.CooldownExemptKinds",
                 logger
             );
             long stallDegradedMs = positiveLong(
@@ -230,6 +303,72 @@ final class HytaleBlackboxConfig {
                 );
                 stallCriticalMs = stallDegradedMs;
             }
+            long tickAvgDegradedMs = positiveLong(
+                triggerCfg.tickAvgDegradedMs,
+                DEFAULT_TICK_AVG_DEGRADED_MS,
+                "Trigger.TickAvgDegradedMs",
+                logger
+            );
+            long tickAvgCriticalMs = positiveLong(
+                triggerCfg.tickAvgCriticalMs,
+                DEFAULT_TICK_AVG_CRITICAL_MS,
+                "Trigger.TickAvgCriticalMs",
+                logger
+            );
+            if (tickAvgCriticalMs < tickAvgDegradedMs) {
+                logger.log(
+                    System.Logger.Level.WARNING,
+                    String.format("Config Trigger.TickAvgCriticalMs (%d) is < Trigger.TickAvgDegradedMs (%d); clamping.",
+                        tickAvgCriticalMs, tickAvgDegradedMs)
+                );
+                tickAvgCriticalMs = tickAvgDegradedMs;
+            }
+
+            Modules modulesCfg = triggerCfg.modules == null ? new Modules() : triggerCfg.modules;
+            ModulePolicy modules = new ModulePolicy(
+                modulesCfg.heartbeatStall,
+                modulesCfg.tickDegraded,
+                modulesCfg.deadlock,
+                modulesCfg.heapPressure,
+                modulesCfg.gcPressure,
+                modulesCfg.cpuSaturation,
+                modulesCfg.netSaturation,
+                modulesCfg.playerDrop,
+                modulesCfg.logError
+            );
+
+            DetectorPolicy detectors = new DetectorPolicy(
+                modules,
+                percentInt(triggerCfg.heapPressurePct, DEFAULT_DETECTORS.heapPressurePct(),
+                    "Trigger.HeapPressurePct", logger),
+                nonNegativeDuration(triggerCfg.heapPressureSustain, DEFAULT_DETECTORS.heapPressureSustain(),
+                    "Trigger.HeapPressureSustain", logger),
+                percentInt(triggerCfg.gcPressurePct, DEFAULT_DETECTORS.gcPressurePct(),
+                    "Trigger.GcPressurePct", logger),
+                nonNegativeDuration(triggerCfg.gcPressureWindow, DEFAULT_DETECTORS.gcPressureWindow(),
+                    "Trigger.GcPressureWindow", logger),
+                percentInt(triggerCfg.cpuSaturationPct, DEFAULT_DETECTORS.cpuSaturationPct(),
+                    "Trigger.CpuSaturationPct", logger),
+                nonNegativeDuration(triggerCfg.cpuSaturationSustain, DEFAULT_DETECTORS.cpuSaturationSustain(),
+                    "Trigger.CpuSaturationSustain", logger),
+                nonNegativeLong(triggerCfg.netInMbps, DEFAULT_DETECTORS.netInMbps(),
+                    "Trigger.NetInMbps", logger),
+                nonNegativeLong(triggerCfg.netOutMbps, DEFAULT_DETECTORS.netOutMbps(),
+                    "Trigger.NetOutMbps", logger),
+                nonNegativeDuration(triggerCfg.netSustain, DEFAULT_DETECTORS.netSustain(),
+                    "Trigger.NetSustain", logger),
+                percentInt(triggerCfg.playerDropPct, DEFAULT_DETECTORS.playerDropPct(),
+                    "Trigger.PlayerDropPct", logger),
+                nonNegativeDuration(triggerCfg.playerDropWindow, DEFAULT_DETECTORS.playerDropWindow(),
+                    "Trigger.PlayerDropWindow", logger),
+                nonNegativeInt(triggerCfg.playerDropMinPlayers, DEFAULT_DETECTORS.playerDropMinPlayers(),
+                    "Trigger.PlayerDropMinPlayers", logger),
+                triggerCfg.logErrorSkipSentry,
+                triggerCfg.logErrorRequireThrowable,
+                nonNegativeDuration(triggerCfg.logErrorDedupeWindow, DEFAULT_DETECTORS.logErrorDedupeWindow(),
+                    "Trigger.LogErrorDedupeWindow", logger),
+                compilePatterns(triggerCfg.logErrorIgnore, "Trigger.LogErrorIgnore", logger)
+            );
 
             int maxCount = nonNegativeInt(retentionCfg.maxCount, DEFAULT_RETENTION_MAX_COUNT, "Retention.MaxCount", logger);
             long maxTotalBytes = nonNegativeLong(
@@ -246,6 +385,12 @@ final class HytaleBlackboxConfig {
                 );
                 maxAge = DEFAULT_RETENTION_MAX_AGE;
             }
+            int failedRecordingMaxCount = nonNegativeInt(
+                retentionCfg.failedRecordingMaxCount,
+                RetentionPolicy.DEFAULT_FAILED_RECORDING_MAX_COUNT,
+                "Retention.FailedRecordingMaxCount",
+                logger
+            );
 
             String webhookUrl = discordCfg.webhookUrl == null ? DEFAULT_DISCORD_WEBHOOK_URL : discordCfg.webhookUrl;
             Duration webhookCooldown = nonNegativeDuration(
@@ -275,35 +420,43 @@ final class HytaleBlackboxConfig {
                     jfrMaxSizeBytes,
                     recordingName,
                     jfrDisabledEvents,
-                    new TriggerPolicy(cooldown, debounce, stallDegradedMs, stallCriticalMs),
+                    new TriggerPolicy(cooldown, debounce, stallDegradedMs, stallCriticalMs,
+                        tickAvgDegradedMs, tickAvgCriticalMs, detectors, cooldownExemptKinds),
                     new CapturePolicy(
-                        new RetentionPolicy(maxCount, maxTotalBytes, maxAge),
+                        new RetentionPolicy(maxCount, maxTotalBytes, maxAge, failedRecordingMaxCount),
                         captureCfg.enabled,
                         captureCfg.allowPluginExtras,
                         logTailLines,
-                        captureCfg.redactPatterns == null ? DEFAULT_CAPTURE_REDACT_PATTERNS : List.copyOf(captureCfg.redactPatterns)
+                        captureCfg.redactPatterns == null ? DEFAULT_CAPTURE_REDACT_PATTERNS : List.copyOf(captureCfg.redactPatterns),
+                        captureCfg.artifacts == null ? Set.copyOf(DEFAULT_CAPTURE_ARTIFACTS) : Set.copyOf(captureCfg.artifacts),
+                        captureCfg.heapHistogram,
+                        captureCfg.includeServerLog,
+                        captureCfg.includeServerConfig,
+                        captureCfg.includeModConfigs,
+                        captureCfg.allowModConfigOptIn,
+                        captureCfg.sanitizeLog,
+                        FRAMEWORK_PREFIXES
                     ),
                     new DiscordWebhookConfig(webhookUrl, webhookCooldown, requestTimeout, username),
-                    webCfg.enabled
+                    postIncidentMaxWait,
+                    snapshotInterval,
+                    jfrConfiguration,
+                    sampleInterval,
+                    jfrCfg.oldObjectSampling,
+                    metricsCfg.enabled,
+                    nonNegativeInt(metricsCfg.retentionDays, DEFAULT_METRICS_RETENTION_DAYS, "Metrics.RetentionDays", logger),
+                    metricsCfg.cpu,
+                    metricsCfg.allocation,
+                    metricsCfg.prometheus.enabled,
+                    metricsCfg.prometheus.port,
+                    metricsCfg.prometheus.bind,
+                    jfrCfg.threadDumpCount,
+                    threadDumpInterval
                 );
             } catch (RuntimeException e) {
                 logger.log(System.Logger.Level.WARNING, "Invalid Blackbox config; falling back to defaults.", e);
                 return defaultCoreConfig();
             }
-        }
-
-        private static Duration positiveDuration(
-            Duration value,
-            Duration defaultValue,
-            String key,
-            System.Logger logger
-        ) {
-            if (value == null || value.isZero() || value.isNegative()) {
-                logger.log(System.Logger.Level.WARNING,
-                    String.format("Config %s must be > 0; using default %s.", key, defaultValue));
-                return defaultValue;
-            }
-            return value;
         }
 
         private static Duration nonNegativeDuration(
@@ -329,10 +482,59 @@ final class HytaleBlackboxConfig {
             return value;
         }
 
+        private static List<Pattern> compilePatterns(List<String> regexes, String key, System.Logger logger) {
+            if (regexes == null || regexes.isEmpty()) {
+                return List.of();
+            }
+            List<Pattern> compiled = new ArrayList<>(regexes.size());
+            for (String regex : regexes) {
+                if (regex == null || regex.isBlank()) {
+                    continue;
+                }
+                try {
+                    compiled.add(Pattern.compile(regex));
+                } catch (PatternSyntaxException e) {
+                    logger.log(System.Logger.Level.WARNING,
+                        String.format("Skipping invalid %s pattern: %s", key, regex), e);
+                }
+            }
+            return List.copyOf(compiled);
+        }
+
+        private static Set<TriggerKind> triggerKinds(
+            List<String> names, Set<TriggerKind> fallback, String key, System.Logger logger) {
+            if (names == null) {
+                return fallback;
+            }
+            Set<TriggerKind> kinds = new LinkedHashSet<>();
+            for (String name : names) {
+                if (name == null || name.isBlank()) {
+                    continue;
+                }
+                try {
+                    kinds.add(TriggerKind.valueOf(name.trim().toUpperCase(Locale.ROOT)));
+                } catch (IllegalArgumentException e) {
+                    logger.log(System.Logger.Level.WARNING,
+                        String.format("Config %s has unknown trigger kind '%s'; ignoring.", key, name));
+                }
+            }
+            return kinds;
+        }
+
         private static long nonNegativeLong(long value, long defaultValue, String key, System.Logger logger) {
             if (value < 0L) {
                 logger.log(System.Logger.Level.WARNING,
                     String.format("Config %s must be >= 0; using default %d.", key, defaultValue));
+                return defaultValue;
+            }
+            return value;
+        }
+
+        private static int percentInt(int value, int defaultValue, String key, System.Logger logger) {
+            if (value < 0 || value > 100) {
+                logger.log(System.Logger.Level.WARNING,
+                    String.format("Config %s must be within 0..100 (0 = disabled); using default %d.",
+                        key, defaultValue));
                 return defaultValue;
             }
             return value;
@@ -362,6 +564,13 @@ final class HytaleBlackboxConfig {
         public long maxSizeBytes = DEFAULT_JFR_MAX_SIZE_BYTES;
         public String recordingName = DEFAULT_JFR_RECORDING_NAME;
         public List<String> disabledEvents = List.of();
+        public Duration postIncidentMaxWait = DEFAULT_JFR_POST_INCIDENT_MAX_WAIT;
+        public int threadDumpCount = DEFAULT_JFR_THREAD_DUMP_COUNT;
+        public Duration threadDumpInterval = DEFAULT_JFR_THREAD_DUMP_INTERVAL;
+        public Duration snapshotInterval = DEFAULT_JFR_SNAPSHOT_INTERVAL;
+        public String configuration = DEFAULT_JFR_CONFIGURATION;
+        public Duration sampleInterval = DEFAULT_JFR_SAMPLE_INTERVAL;
+        public boolean oldObjectSampling = DEFAULT_JFR_OLD_OBJECT_SAMPLING;
 
         static final BuilderCodec<Jfr> CODEC = BuilderCodec
             .builder(Jfr.class, Jfr::new)
@@ -385,6 +594,41 @@ final class HytaleBlackboxConfig {
                     c.disabledEvents = List.of(v);
                 }
             }, (c, ei) -> c.disabledEvents.toArray(new String[0])).add()
+            .append(new KeyedCodec<>("PostIncidentMaxWait", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.postIncidentMaxWait = v;
+                }
+            }, (c, ei) -> c.postIncidentMaxWait).add()
+            .append(new KeyedCodec<>("ThreadDumpCount", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.threadDumpCount = v;
+                }
+            }, (c, ei) -> c.threadDumpCount).add()
+            .append(new KeyedCodec<>("ThreadDumpInterval", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.threadDumpInterval = v;
+                }
+            }, (c, ei) -> c.threadDumpInterval).add()
+            .append(new KeyedCodec<>("SnapshotInterval", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.snapshotInterval = v;
+                }
+            }, (c, ei) -> c.snapshotInterval).add()
+            .append(new KeyedCodec<>("Configuration", Codec.STRING), (c, v, ei) -> {
+                if (v != null) {
+                    c.configuration = v;
+                }
+            }, (c, ei) -> c.configuration).add()
+            .append(new KeyedCodec<>("SampleInterval", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.sampleInterval = v;
+                }
+            }, (c, ei) -> c.sampleInterval).add()
+            .append(new KeyedCodec<>("OldObjectSampling", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.oldObjectSampling = v;
+                }
+            }, (c, ei) -> c.oldObjectSampling).add()
             .build();
     }
 
@@ -393,6 +637,13 @@ final class HytaleBlackboxConfig {
         public boolean allowPluginExtras = DEFAULT_CAPTURE_ALLOW_PLUGIN_EXTRAS;
         public int logTailLines = DEFAULT_CAPTURE_LOG_TAIL_LINES;
         public List<String> redactPatterns = new ArrayList<>(DEFAULT_CAPTURE_REDACT_PATTERNS);
+        public List<String> artifacts = new ArrayList<>(DEFAULT_CAPTURE_ARTIFACTS);
+        public boolean heapHistogram = DEFAULT_CAPTURE_HEAP_HISTOGRAM;
+        public boolean includeServerLog = DEFAULT_CAPTURE_INCLUDE_SERVER_LOG;
+        public boolean includeServerConfig = DEFAULT_CAPTURE_INCLUDE_SERVER_CONFIG;
+        public boolean includeModConfigs = DEFAULT_CAPTURE_INCLUDE_MOD_CONFIGS;
+        public boolean allowModConfigOptIn = DEFAULT_CAPTURE_ALLOW_MOD_CONFIG_OPT_IN;
+        public boolean sanitizeLog = DEFAULT_CAPTURE_SANITIZE_LOG;
 
         static final BuilderCodec<Capture> CODEC = BuilderCodec
             .builder(Capture.class, Capture::new)
@@ -401,6 +652,11 @@ final class HytaleBlackboxConfig {
                     c.enabled = v;
                 }
             }, (c, ei) -> c.enabled).add()
+            .append(new KeyedCodec<>("HeapHistogram", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.heapHistogram = v;
+                }
+            }, (c, ei) -> c.heapHistogram).add()
             .append(new KeyedCodec<>("AllowPluginExtras", Codec.BOOLEAN), (c, v, ei) -> {
                 if (v != null) {
                     c.allowPluginExtras = v;
@@ -411,19 +667,78 @@ final class HytaleBlackboxConfig {
                     c.logTailLines = v;
                 }
             }, (c, ei) -> c.logTailLines).add()
+            .append(new KeyedCodec<>("IncludeServerLog", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.includeServerLog = v;
+                }
+            }, (c, ei) -> c.includeServerLog).add()
+            .append(new KeyedCodec<>("IncludeServerConfig", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.includeServerConfig = v;
+                }
+            }, (c, ei) -> c.includeServerConfig).add()
+            .append(new KeyedCodec<>("IncludeModConfigs", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.includeModConfigs = v;
+                }
+            }, (c, ei) -> c.includeModConfigs).add()
+            .append(new KeyedCodec<>("AllowModConfigOptIn", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.allowModConfigOptIn = v;
+                }
+            }, (c, ei) -> c.allowModConfigOptIn).add()
+            .append(new KeyedCodec<>("SanitizeLog", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.sanitizeLog = v;
+                }
+            }, (c, ei) -> c.sanitizeLog).add()
             .append(new KeyedCodec<>("RedactPatterns", Codec.STRING_ARRAY), (c, v, ei) -> {
                 if (v != null) {
                     c.redactPatterns = new ArrayList<>(List.of(v));
                 }
             }, (c, ei) -> c.redactPatterns.toArray(new String[0])).add()
+            .append(new KeyedCodec<>("Artifacts", Codec.STRING_ARRAY), (c, v, ei) -> {
+                if (v != null) {
+                    c.artifacts = new ArrayList<>(List.of(v));
+                }
+            }, (c, ei) -> c.artifacts.toArray(new String[0])).add()
             .build();
     }
 
     private static final class Trigger {
         public Duration cooldown = DEFAULT_TRIGGER_COOLDOWN;
         public Duration debounce = DEFAULT_TRIGGER_DEBOUNCE;
+        public List<String> cooldownExemptKinds = defaultCooldownExemptKinds();
         public long stallDegradedMs = DEFAULT_STALL_DEGRADED_MS;
         public long stallCriticalMs = DEFAULT_STALL_CRITICAL_MS;
+        public long tickAvgDegradedMs = DEFAULT_TICK_AVG_DEGRADED_MS;
+        public long tickAvgCriticalMs = DEFAULT_TICK_AVG_CRITICAL_MS;
+        public Modules modules = new Modules();
+        public int heapPressurePct = DEFAULT_DETECTORS.heapPressurePct();
+        public Duration heapPressureSustain = DEFAULT_DETECTORS.heapPressureSustain();
+        public int gcPressurePct = DEFAULT_DETECTORS.gcPressurePct();
+        public Duration gcPressureWindow = DEFAULT_DETECTORS.gcPressureWindow();
+        public int cpuSaturationPct = DEFAULT_DETECTORS.cpuSaturationPct();
+        public Duration cpuSaturationSustain = DEFAULT_DETECTORS.cpuSaturationSustain();
+        public long netInMbps = DEFAULT_DETECTORS.netInMbps();
+        public long netOutMbps = DEFAULT_DETECTORS.netOutMbps();
+        public Duration netSustain = DEFAULT_DETECTORS.netSustain();
+        public int playerDropPct = DEFAULT_DETECTORS.playerDropPct();
+        public Duration playerDropWindow = DEFAULT_DETECTORS.playerDropWindow();
+        public int playerDropMinPlayers = DEFAULT_DETECTORS.playerDropMinPlayers();
+        public boolean logErrorSkipSentry = DEFAULT_DETECTORS.logErrorSkipSentry();
+        public boolean logErrorRequireThrowable = DEFAULT_DETECTORS.logErrorRequireThrowable();
+        public Duration logErrorDedupeWindow = DEFAULT_DETECTORS.logErrorDedupeWindow();
+        public List<String> logErrorIgnore = new ArrayList<>();
+
+        private static List<String> defaultCooldownExemptKinds() {
+            List<String> names = new ArrayList<>();
+            for (TriggerKind kind : TriggerPolicy.DEFAULT_COOLDOWN_EXEMPT_KINDS) {
+                names.add(kind.name());
+            }
+            java.util.Collections.sort(names);
+            return names;
+        }
 
         static final BuilderCodec<Trigger> CODEC = BuilderCodec
             .builder(Trigger.class, Trigger::new)
@@ -437,6 +752,11 @@ final class HytaleBlackboxConfig {
                     c.debounce = v;
                 }
             }, (c, ei) -> c.debounce).add()
+            .append(new KeyedCodec<>("CooldownExemptKinds", Codec.STRING_ARRAY), (c, v, ei) -> {
+                if (v != null) {
+                    c.cooldownExemptKinds = new ArrayList<>(List.of(v));
+                }
+            }, (c, ei) -> c.cooldownExemptKinds.toArray(new String[0])).add()
             .append(new KeyedCodec<>("StallDegradedMs", Codec.LONG), (c, v, ei) -> {
                 if (v != null) {
                     c.stallDegradedMs = v;
@@ -447,6 +767,224 @@ final class HytaleBlackboxConfig {
                     c.stallCriticalMs = v;
                 }
             }, (c, ei) -> c.stallCriticalMs).add()
+            .append(new KeyedCodec<>("TickAvgDegradedMs", Codec.LONG), (c, v, ei) -> {
+                if (v != null) {
+                    c.tickAvgDegradedMs = v;
+                }
+            }, (c, ei) -> c.tickAvgDegradedMs).add()
+            .append(new KeyedCodec<>("TickAvgCriticalMs", Codec.LONG), (c, v, ei) -> {
+                if (v != null) {
+                    c.tickAvgCriticalMs = v;
+                }
+            }, (c, ei) -> c.tickAvgCriticalMs).add()
+            .append(new KeyedCodec<>("Modules", Modules.CODEC), (c, v, ei) -> {
+                if (v != null) {
+                    c.modules = v;
+                }
+            }, (c, ei) -> c.modules).add()
+            .append(new KeyedCodec<>("HeapPressurePct", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.heapPressurePct = v;
+                }
+            }, (c, ei) -> c.heapPressurePct).add()
+            .append(new KeyedCodec<>("HeapPressureSustain", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.heapPressureSustain = v;
+                }
+            }, (c, ei) -> c.heapPressureSustain).add()
+            .append(new KeyedCodec<>("GcPressurePct", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.gcPressurePct = v;
+                }
+            }, (c, ei) -> c.gcPressurePct).add()
+            .append(new KeyedCodec<>("GcPressureWindow", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.gcPressureWindow = v;
+                }
+            }, (c, ei) -> c.gcPressureWindow).add()
+            .append(new KeyedCodec<>("CpuSaturationPct", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.cpuSaturationPct = v;
+                }
+            }, (c, ei) -> c.cpuSaturationPct).add()
+            .append(new KeyedCodec<>("CpuSaturationSustain", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.cpuSaturationSustain = v;
+                }
+            }, (c, ei) -> c.cpuSaturationSustain).add()
+            .append(new KeyedCodec<>("NetInMbps", Codec.LONG), (c, v, ei) -> {
+                if (v != null) {
+                    c.netInMbps = v;
+                }
+            }, (c, ei) -> c.netInMbps).add()
+            .append(new KeyedCodec<>("NetOutMbps", Codec.LONG), (c, v, ei) -> {
+                if (v != null) {
+                    c.netOutMbps = v;
+                }
+            }, (c, ei) -> c.netOutMbps).add()
+            .append(new KeyedCodec<>("NetSustain", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.netSustain = v;
+                }
+            }, (c, ei) -> c.netSustain).add()
+            .append(new KeyedCodec<>("PlayerDropPct", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.playerDropPct = v;
+                }
+            }, (c, ei) -> c.playerDropPct).add()
+            .append(new KeyedCodec<>("PlayerDropWindow", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.playerDropWindow = v;
+                }
+            }, (c, ei) -> c.playerDropWindow).add()
+            .append(new KeyedCodec<>("PlayerDropMinPlayers", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.playerDropMinPlayers = v;
+                }
+            }, (c, ei) -> c.playerDropMinPlayers).add()
+            .append(new KeyedCodec<>("LogErrorSkipSentry", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.logErrorSkipSentry = v;
+                }
+            }, (c, ei) -> c.logErrorSkipSentry).add()
+            .append(new KeyedCodec<>("LogErrorRequireThrowable", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.logErrorRequireThrowable = v;
+                }
+            }, (c, ei) -> c.logErrorRequireThrowable).add()
+            .append(new KeyedCodec<>("LogErrorDedupeWindow", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.logErrorDedupeWindow = v;
+                }
+            }, (c, ei) -> c.logErrorDedupeWindow).add()
+            .append(new KeyedCodec<>("LogErrorIgnore", Codec.STRING_ARRAY), (c, v, ei) -> {
+                if (v != null) {
+                    c.logErrorIgnore = new ArrayList<>(List.of(v));
+                }
+            }, (c, ei) -> c.logErrorIgnore.toArray(new String[0])).add()
+            .build();
+    }
+
+    private static final class Modules {
+        public boolean heartbeatStall = true;
+        public boolean tickDegraded = true;
+        public boolean deadlock = true;
+        public boolean heapPressure = true;
+        public boolean gcPressure = true;
+        public boolean cpuSaturation = true;
+        public boolean netSaturation = true;
+        public boolean playerDrop = true;
+        public boolean logError = false;
+
+        static final BuilderCodec<Modules> CODEC = BuilderCodec
+            .builder(Modules.class, Modules::new)
+            .append(new KeyedCodec<>("HeartbeatStall", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.heartbeatStall = v;
+                }
+            }, (c, ei) -> c.heartbeatStall).add()
+            .append(new KeyedCodec<>("TickDegraded", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.tickDegraded = v;
+                }
+            }, (c, ei) -> c.tickDegraded).add()
+            .append(new KeyedCodec<>("Deadlock", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.deadlock = v;
+                }
+            }, (c, ei) -> c.deadlock).add()
+            .append(new KeyedCodec<>("HeapPressure", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.heapPressure = v;
+                }
+            }, (c, ei) -> c.heapPressure).add()
+            .append(new KeyedCodec<>("GcPressure", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.gcPressure = v;
+                }
+            }, (c, ei) -> c.gcPressure).add()
+            .append(new KeyedCodec<>("CpuSaturation", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.cpuSaturation = v;
+                }
+            }, (c, ei) -> c.cpuSaturation).add()
+            .append(new KeyedCodec<>("NetSaturation", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.netSaturation = v;
+                }
+            }, (c, ei) -> c.netSaturation).add()
+            .append(new KeyedCodec<>("PlayerDrop", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.playerDrop = v;
+                }
+            }, (c, ei) -> c.playerDrop).add()
+            .append(new KeyedCodec<>("LogError", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.logError = v;
+                }
+            }, (c, ei) -> c.logError).add()
+            .build();
+    }
+
+    private static final class Metrics {
+        public boolean enabled = DEFAULT_METRICS_ENABLED;
+        public int retentionDays = DEFAULT_METRICS_RETENTION_DAYS;
+        public boolean cpu = DEFAULT_METRICS_CPU;
+        public boolean allocation = DEFAULT_METRICS_ALLOCATION;
+        public Prometheus prometheus = new Prometheus();
+
+        static final BuilderCodec<Metrics> CODEC = BuilderCodec
+            .builder(Metrics.class, Metrics::new)
+            .append(new KeyedCodec<>("Enabled", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.enabled = v;
+                }
+            }, (c, ei) -> c.enabled).add()
+            .append(new KeyedCodec<>("RetentionDays", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.retentionDays = v;
+                }
+            }, (c, ei) -> c.retentionDays).add()
+            .append(new KeyedCodec<>("Cpu", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.cpu = v;
+                }
+            }, (c, ei) -> c.cpu).add()
+            .append(new KeyedCodec<>("Allocation", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.allocation = v;
+                }
+            }, (c, ei) -> c.allocation).add()
+            .append(new KeyedCodec<>("Prometheus", Prometheus.CODEC), (c, v, ei) -> {
+                if (v != null) {
+                    c.prometheus = v;
+                }
+            }, (c, ei) -> c.prometheus).add()
+            .build();
+    }
+
+    private static final class Prometheus {
+        public boolean enabled = DEFAULT_PROMETHEUS_ENABLED;
+        public int port = DEFAULT_PROMETHEUS_PORT;
+        public String bind = DEFAULT_PROMETHEUS_BIND;
+
+        static final BuilderCodec<Prometheus> CODEC = BuilderCodec
+            .builder(Prometheus.class, Prometheus::new)
+            .append(new KeyedCodec<>("Enabled", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.enabled = v;
+                }
+            }, (c, ei) -> c.enabled).add()
+            .append(new KeyedCodec<>("Port", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.port = v;
+                }
+            }, (c, ei) -> c.port).add()
+            .append(new KeyedCodec<>("Bind", Codec.STRING), (c, v, ei) -> {
+                if (v != null) {
+                    c.bind = v;
+                }
+            }, (c, ei) -> c.bind).add()
             .build();
     }
 
@@ -454,6 +992,7 @@ final class HytaleBlackboxConfig {
         public int maxCount = DEFAULT_RETENTION_MAX_COUNT;
         public long maxTotalBytes = DEFAULT_RETENTION_MAX_TOTAL_BYTES;
         public Duration maxAge = DEFAULT_RETENTION_MAX_AGE;
+        public int failedRecordingMaxCount = RetentionPolicy.DEFAULT_FAILED_RECORDING_MAX_COUNT;
 
         static final BuilderCodec<Retention> CODEC = BuilderCodec
             .builder(Retention.class, Retention::new)
@@ -462,6 +1001,11 @@ final class HytaleBlackboxConfig {
                     c.maxCount = v;
                 }
             }, (c, ei) -> c.maxCount).add()
+            .append(new KeyedCodec<>("FailedRecordingMaxCount", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.failedRecordingMaxCount = v;
+                }
+            }, (c, ei) -> c.failedRecordingMaxCount).add()
             .append(new KeyedCodec<>("MaxTotalBytes", Codec.LONG), (c, v, ei) -> {
                 if (v != null) {
                     c.maxTotalBytes = v;
@@ -503,16 +1047,4 @@ final class HytaleBlackboxConfig {
             .build();
     }
 
-    private static final class Web {
-        public boolean enabled = DEFAULT_WEB_ENABLED;
-
-        static final BuilderCodec<Web> CODEC = BuilderCodec
-            .builder(Web.class, Web::new)
-            .append(new KeyedCodec<>("Enabled", Codec.BOOLEAN), (c, v, ei) -> {
-                if (v != null) {
-                    c.enabled = v;
-                }
-            }, (c, ei) -> c.enabled).add()
-            .build();
-    }
 }

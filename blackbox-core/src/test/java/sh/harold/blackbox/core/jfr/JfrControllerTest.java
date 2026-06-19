@@ -1,6 +1,9 @@
 package sh.harold.blackbox.core.jfr;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -89,6 +92,74 @@ class JfrControllerTest {
             Recording recording = extractRecording(controller);
             assertEquals("false", recording.getSettings().get("jdk.CPULoad#enabled"));
         }
+    }
+
+    @Test
+    void oldObjectSamplingIsOffByDefault(@TempDir Path tempDir) throws Exception {
+        assertTrue(FlightRecorder.isAvailable(), "JFR is not available in this runtime.");
+        try (JfrController controller = new JfrController(Duration.ofSeconds(60), 16L * 1024L * 1024L,
+            "blackbox-test")) {
+            controller.start();
+            Recording recording = extractRecording(controller);
+            assertNotEquals("true", recording.getSettings().get("jdk.OldObjectSample#stackTrace"));
+        }
+    }
+
+    @Test
+    void oldObjectSamplingIsEnabledWhenOptedIn(@TempDir Path tempDir) throws Exception {
+        assertTrue(FlightRecorder.isAvailable(), "JFR is not available in this runtime.");
+        try (JfrController controller = new JfrController(Duration.ofSeconds(60), 16L * 1024L * 1024L,
+            "blackbox-test", List.of(), "default", true)) {
+            controller.start();
+            Recording recording = extractRecording(controller);
+            assertEquals("true", recording.getSettings().get("jdk.OldObjectSample#enabled"));
+            assertEquals("true", recording.getSettings().get("jdk.OldObjectSample#stackTrace"));
+        }
+    }
+
+    @Test
+    void applyConfigurationSwitchesSettingsLiveWithoutRestart(@TempDir Path tempDir) throws Exception {
+        assertTrue(FlightRecorder.isAvailable(), "JFR is not available in this runtime.");
+        try (JfrController controller = new JfrController(
+            Duration.ofSeconds(60), 16L * 1024L * 1024L, "blackbox-test", List.of("jdk.CPULoad"))) {
+            controller.start();
+            Recording before = extractRecording(controller);
+
+            controller.applyConfiguration("profile");
+            Recording after = extractRecording(controller);
+
+            assertSame(before, after);
+            assertEquals("false", after.getSettings().get("jdk.CPULoad#enabled"));
+        }
+    }
+
+    @Test
+    void restartSwapsRecordingAndPreservesNameAndCaps(@TempDir Path tempDir) throws Exception {
+        assertTrue(FlightRecorder.isAvailable(), "JFR is not available in this runtime.");
+        Path dumpPath = tempDir.resolve("recording.jfr");
+
+        try (JfrController controller = new JfrController(Duration.ofSeconds(60), 16L * 1024L * 1024L,
+            "blackbox-test")) {
+            controller.start();
+            Recording before = extractRecording(controller);
+
+            controller.restart("profile");
+            Recording profiled = extractRecording(controller);
+            assertNotSame(before, profiled);
+            assertEquals("blackbox-test", profiled.getName());
+            assertEquals(Duration.ofSeconds(60), profiled.getMaxAge());
+            assertEquals(16L * 1024L * 1024L, profiled.getMaxSize());
+
+            controller.restart(null);
+            Recording reverted = extractRecording(controller);
+            assertNotSame(profiled, reverted);
+            assertEquals("blackbox-test", reverted.getName());
+
+            controller.dump(dumpPath);
+        }
+
+        assertTrue(Files.exists(dumpPath), "Expected JFR dump to exist after restart.");
+        assertTrue(Files.size(dumpPath) > 0, "Expected JFR dump to be non-empty after restart.");
     }
 
     private static Recording extractRecording(JfrController controller) throws Exception {
