@@ -1,89 +1,115 @@
 # Blackbox ![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge) ![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge) ![Platform](https://img.shields.io/badge/platform-hytale-orange?style=for-the-badge)
 
-<img width="2560" height="1392" alt="image" src="https://github.com/user-attachments/assets/82177e16-cda8-4611-8c52-ca9c7ca3e66a" />
+<img alt="Blackbox incident report" src="https://raw.githubusercontent.com/Xytronix/blackbox/dev/docs/report.png" />
 
-> Generated JFR being viewed in JDK Mission Control
----
+> The self-contained `report.html` — the Key metrics page of an incident.
 
-## **The Flight Recorder for Hytale dedicated servers.**
-Things rarely break when you are staring at the console; they break at 3 AM when you are asleep. Blackbox is an always on incident recorder designed to solve the ambiguity of **"it just crashed."**
+### The flight recorder for Hytale dedicated servers.
 
-When your server stutters, stalls, or terminates, or otherwise has a seizure, Blackbox ensures you have a clean bundle of state to analyze; it eliminates the need to attempt to reproduce the impossible.
+Servers break at 3 AM, when nobody is watching. Blackbox is an always-on incident recorder: it keeps a rolling JVM recording (30 min / 512 MiB, ~1% overhead) running at all times, and turns a stall, a crash, or a manual command into a clean, self-contained bundle you can analyze later. Strictly local, safe to leave in production.
 
-It is not a dashboard; it is not a flamegraph viewer; it is, regrettably, not a box of chicken nuggets. It is a black box.
+## What you get
 
-### But why?
+One zip per incident in `incidents/`:
 
-Most observability tools excel at answering "what is slow right now?". Production environments, however, rarely cooperate with live profiling sessions. Blackbox addresses the other common administrative scenario: "I have no idea what happened, and it fixed itself."
+* **`report.html`** — self-contained analysis page; open in any browser, even offline.
+* **`recording.jfr`** — raw Java Flight Recorder data for JDK Mission Control.
+* **`incident.json`** — machine-readable metadata.
+* **`env/` & `extras/`** — JVM/OS facts, thread dump, plugin list, world list, heartbeats, server-log tail.
 
-Interactive profilers cannot rewind time; Blackbox can. It records state continuously, quietly, and with minimal overhead, ensuring that when an incident ends, the investigation can begin.
+Artifacts (except `incident.json`) toggle via `Capture.Artifacts`; disk is capped by retention (25 bundles / 7 days by default).
 
-### The Incident Report
+## The report
 
-The output is simple. You get:
+`report.html` does the reading for you:
 
-* **The Archive**: A single zip file per incident; easy to archive, easy to transfer.
-* **The Summary**: A generated `report.html` designed for human readability without requiring port binding or web panels.
-* **The Source**: The raw JFR (Java Flight Recorder) recording for granular analysis.
+* **Diagnosis** — verdict with a confidence rating, evidence rows, next steps, and baseline-vs-incident deltas.
+* **Charts** — tick, TPS, players, ping, CPU, heap, RSS, network, threads, GC, exceptions; zoomable, with an incident marker and log/event lines.
+* **CPU** — by world thread, engine subsystem, and mod (exact classloader attribution), plus a flamegraph and the top hot methods.
+* **Engine tick costs** — per-system wall-clock timings that CPU sampling can't see.
+* **Memory & GC** — heap/RSS, GC causes, allocation pressure by subsystem/thread/class/mod, leak candidates, optional heap histogram.
+* **Mods** — plugin list with compatibility verdicts and cross-mod mixin conflict detection.
+* **Server log** — parsed, collapsed, filterable; plus one-click "Copy as Markdown."
 
-### How The Sausage Is Made (The Architecture)
+Sections without data hide themselves.
 
-Blackbox maintains a rolling JVM recording in the background. It utilizes internal JVM mechanisms to ensure low overhead without requiring external agents.
+## Triggers
 
-When a trigger fires (such as a heartbeat stall or a manual invocation), Blackbox dumps the buffer to disk, generates the summary, and packages the artifacts. The design goal are post mortems that are automatic and boring; boring is good.
+Configured under `Trigger.*`; a threshold of zero disables a detector.
+
+| Trigger | Fires when | Default |
+|---|---|---|
+| `HEARTBEAT_STALL` | A world misses its heartbeat | 2000 ms degraded, 10000 ms critical |
+| `TICK_DEGRADED` | Tick average stays high | 100 ms degraded, 250 ms critical |
+| `WORLD_FAILURE` | A world thread dies | always on |
+| `DEADLOCK` | The JVM reports a deadlocked thread set | on |
+| `HEAP_PRESSURE` | After-GC heap occupancy stays high | 90% sustained 60 s |
+| `GC_PRESSURE` | Fraction of wall time spent in GC | 25% over 60 s |
+| `CPU_SATURATION` | Process CPU stays pinned | 95% sustained 60 s |
+| `NET_SATURATION` | Interface throughput exceeds your threshold | disabled (0 Mbit/s) |
+| `PLAYER_DROP` | Online count collapses | 50% within 60 s, min 8 players |
+| `MANUAL` | You ran `/blackbox dump` | n/a |
+
+A global cooldown (30 s) and per-trigger debounce (2 s) stop an unhealthy server from flooding your disk.
+
+## Commands
+
+| Command | Does |
+|---|---|
+| `/blackbox dump` | Trigger a manual capture |
+| `/blackbox status` | Show status |
+| `/blackbox list` | List recent incidents |
+| `/blackbox open` | Show the incident directory path |
+| `/blackbox triggers` | Show every trigger's live config |
+| `/blackbox histogram` | Show top heap classes (walks the heap; warns first) |
+| `/blackbox profile <minutes>` | Record at high fidelity for N minutes, then capture |
+| `/blackbox reload` | Reload `blackbox.json` without a restart (`Jfr.*` changes need a restart) |
+
+## Configuration
+
+`blackbox.json` is written on first start with every key and default. Groups:
+
+* **`Jfr`** — recording window/size, snapshot interval, sample cadence, and preset (`default` ~1% / `profile` ~2%).
+* **`Trigger`** — thresholds for the table above.
+* **`Retention`** — bundle count / total bytes / max age.
+* **`Capture`** — artifact toggles, log-tail length, redaction patterns, heap-histogram opt-in.
+* **`Discord`** — webhook alerts; inert until `WebhookUrl` is set.
+* **`Metrics`** — opt-in (off by default) long-horizon health CSV at `metrics/health-*.csv` for spreadsheets/Grafana.
 
 ## Installation
 
-1. Place the Blackbox jar into the dedicated server `mods/` directory.
-2. Start the server.
-3. Upon failure, retrieve the latest archive from the `incidents/` directory.
+1. Drop the Blackbox jar into the server's `mods/` directory.
+2. Start the server — `blackbox.json` appears with defaults.
+3. After an incident, grab the latest zip from `incidents/`.
 
-Blackbox is designed to be a permanent resident in your production environment; it is safe to leave installed.
+Open `report.html` for the quick read, or `recording.jfr` in **JDK Mission Control** for the deep dive.
 
-### How to Use the Analysis?
+## Optional JVM flags
 
-Investigation follows two distinct paths, depending on the required depth.
+Blackbox needs no flags (don't pass `-XX:StartFlightRecording` — it isn't read). These optional flags sharpen the report:
 
-#### The Quick Read
-Unzip the bundle and view `report.html`. This document summarizes the state of the server at the time of the crash; it is designed to be legible to tired system administrators.
+* `-XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints` — accurate method sampling (the biggest win).
+* `-XX:FlightRecorderOptions=stackdepth=256` — deeper flamegraph stacks (default 64).
+* `-XX:NativeMemoryTracking=summary` — adds native/off-heap memory to the report.
+* `-XX:FlightRecorderOptions=repository=<path>` — durable crash recovery if your temp dir is RAM-backed or wiped on reboot.
 
-#### The Deep Dive
-Open `recording.jfr` in **JDK Mission Control**. This allows for inspection of the rolling history prior to the event: CPU usage, memory allocations, GC pauses, lock contention, and thread timelines.
+## Plugin API
 
-## Privacy & Security
+Mods can feed the report via reflection — no compile-time dependency, and a no-op when Blackbox is absent:
 
-The default behavior is strictly local.
+```java
+BlackboxApi.registerDiagnostics("My Plugin", () -> Map.of("mode", "fast"));
+BlackboxApi.recordEvent("AiThrottler", "throttled 42 entities");
+BlackboxApi.recordCount("Chunks unloaded", 180);
+BlackboxApi.recordGauge("Entities frozen", 42);
+```
 
-* Data never leaves the machine automatically.
-* There are no third party service hooks.
-* Discord integration is optional; it sends only a status alert, never the bundle itself.
-* Optional and disabled by default.
+Events and metrics ride in the rolling buffer, so they survive crashes and appear on any incident whose window covers them.
 
-If you intend to share a bundle publicly, treat it with the same caution as a heap dump.
+## Privacy
 
-## Performance
-
-Blackbox adheres to a strict "do no harm" policy.
-
-* **Thread Safety**: World threads are sacred; no blocking I/O occurs on critical ticks.
-* **Isolation**: Capture work is offloaded to Blackbox owned executors.
-* **Bounded Resources**: Disk usage is strictly capped by retention policies (count, age, total bytes).
-* **Graceful Failure**: Incident capture is best effort; server stability always takes precedence over reporting.
-
-## Relationship to other tools
-
-Blackbox is not a replacement for interactive profilers (yet). Retain your existing toolkit for live investigation; use Blackbox for the incidents you missed.
+Strictly local — nothing leaves the machine by default. Discord alerts are opt-in and never include the bundle. Text artifacts pass through regex redaction (`Capture.RedactPatterns`; IPs and webhook URLs masked by default). Treat a shared bundle like a heap dump.
 
 ## Development
 
-To build the project locally, ensure you have JDK 21 installed.
-
-```bash
-./gradlew build
-```
-
-You can also produce a jar with:
-
-```bash
-./gradlew jar
-```
+Requires JDK 21. Build with `./gradlew build` (or `./gradlew jar`).
