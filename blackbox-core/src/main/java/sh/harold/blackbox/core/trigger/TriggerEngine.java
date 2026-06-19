@@ -25,8 +25,7 @@ public final class TriggerEngine {
         Objects.requireNonNull(event, "event");
         Instant now = event.at() == null ? clock.instant() : event.at();
 
-        if (lastAcceptedAt != null && event.kind() != TriggerKind.WORLD_FAILURE
-            && event.kind() != TriggerKind.DEADLOCK) {
+        if (lastAcceptedAt != null && !policy.cooldownExemptKinds().contains(event.kind())) {
             Instant cooldownUntil = lastAcceptedAt.plus(policy.cooldown());
             if (now.isBefore(cooldownUntil)) {
                 return new TriggerResult(TriggerDecision.COOLDOWN, Severity.INFO,

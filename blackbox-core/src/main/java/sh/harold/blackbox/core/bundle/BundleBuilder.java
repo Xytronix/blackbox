@@ -12,9 +12,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import sh.harold.blackbox.core.env.EnvCollector;
+import sh.harold.blackbox.core.env.TextRedactor;
 import sh.harold.blackbox.core.health.JfrTimeline;
 import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.json.IncidentJson;
@@ -26,14 +28,27 @@ import sh.harold.blackbox.core.report.ReportHtml;
 public final class BundleBuilder {
     private final Clock clock;
     private final System.Logger logger;
+    private final TextRedactor redactor;
+    private final UnaryOperator<String> textMasker;
 
     public BundleBuilder(Clock clock) {
         this(clock, System.getLogger(BundleBuilder.class.getName()));
     }
 
     public BundleBuilder(Clock clock, System.Logger logger) {
+        this(clock, logger, null);
+    }
+
+    public BundleBuilder(Clock clock, System.Logger logger, TextRedactor redactor) {
+        this(clock, logger, redactor, null);
+    }
+
+    public BundleBuilder(Clock clock, System.Logger logger, TextRedactor redactor,
+                         UnaryOperator<String> textMasker) {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.logger = Objects.requireNonNull(logger, "logger");
+        this.redactor = redactor;
+        this.textMasker = textMasker;
     }
 
     public Path build(
@@ -87,8 +102,21 @@ public final class BundleBuilder {
         IncidentJson.write(report, buffer);
         ZipEntry entry = zipEntry("incident.json");
         zip.putNextEntry(entry);
-        zip.write(buffer.toByteArray());
+        zip.write(maybeRedact(buffer.toByteArray()));
         zip.closeEntry();
+    }
+
+    private byte[] maybeRedact(byte[] data) {
+        return maybeMask(redactor == null ? data : redactor.redact(data));
+    }
+
+    private byte[] maybeMask(byte[] data) {
+        if (textMasker == null || data == null || data.length == 0) {
+            return data;
+        }
+        String text = new String(data, StandardCharsets.UTF_8);
+        String masked = textMasker.apply(text);
+        return text.equals(masked) ? data : masked.getBytes(StandardCharsets.UTF_8);
     }
 
     private void writeRecording(Path recordingJfr, ZipOutputStream zip) throws IOException {
@@ -111,7 +139,7 @@ public final class BundleBuilder {
         ReportHtml.write(report, timeline, buffer);
         ZipEntry entry = zipEntry("report.html");
         zip.putNextEntry(entry);
-        zip.write(buffer.toByteArray());
+        zip.write(maybeRedact(buffer.toByteArray()));
         zip.closeEntry();
     }
 
@@ -135,7 +163,7 @@ public final class BundleBuilder {
             }
             ZipEntry entry = zipEntry(extra.pathInZip());
             zip.putNextEntry(entry);
-            zip.write(extra.data());
+            zip.write(maybeMask(extra.data()));
             zip.closeEntry();
         }
     }

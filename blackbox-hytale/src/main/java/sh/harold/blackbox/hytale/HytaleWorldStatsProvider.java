@@ -15,6 +15,12 @@ import sh.harold.blackbox.core.health.WorldStatsProvider;
 final class HytaleWorldStatsProvider implements WorldStatsProvider {
     private static final System.Logger LOGGER = System.getLogger(HytaleWorldStatsProvider.class.getName());
 
+    private final PlayerNameMasker nameMasker;
+
+    HytaleWorldStatsProvider(PlayerNameMasker nameMasker) {
+        this.nameMasker = java.util.Objects.requireNonNull(nameMasker, "nameMasker");
+    }
+
     @Override
     public Worlds worlds() {
         List<HealthSnapshot.World> out = new ArrayList<>();
@@ -73,7 +79,7 @@ final class HytaleWorldStatsProvider implements WorldStatsProvider {
         }
     }
 
-    private static List<String> playerNames(World world) {
+    private List<String> playerNames(World world) {
         try {
             List<String> names = new ArrayList<>();
             for (com.hypixel.hytale.server.core.universe.PlayerRef ref : world.getPlayerRefs()) {
@@ -82,7 +88,8 @@ final class HytaleWorldStatsProvider implements WorldStatsProvider {
                 }
                 String username = ref.getUsername();
                 if (username != null && !username.isBlank()) {
-                    names.add(username);
+                    nameMasker.remember(username, ref.getUuid());
+                    names.add(nameMasker.maskName(username));
                 }
             }
             names.sort(String.CASE_INSENSITIVE_ORDER);

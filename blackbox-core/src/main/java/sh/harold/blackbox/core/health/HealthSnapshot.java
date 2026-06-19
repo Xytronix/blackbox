@@ -72,5 +72,15 @@ public record HealthSnapshot(
         }
     }
 
-    public record HotThread(String thread, long samples, String topMethod) {}
+    public record HotThread(String thread, long samples, String topMethod, List<MethodSample> methods) {
+        public HotThread {
+            methods = methods == null ? List.of() : List.copyOf(methods);
+        }
+
+        public HotThread(String thread, long samples, String topMethod) {
+            this(thread, samples, topMethod, List.of());
+        }
+    }
+
+    public record MethodSample(String method, long samples) {}
 }

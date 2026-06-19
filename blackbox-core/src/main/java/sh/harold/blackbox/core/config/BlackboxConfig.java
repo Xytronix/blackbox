@@ -23,13 +23,21 @@ public record BlackboxConfig(
     Duration jfrSnapshotInterval,
     String jfrConfiguration,
     Duration jfrSampleInterval,
+    boolean jfrOldObjectSampling,
     boolean metricsEnabled,
-    int metricsRetentionDays
+    int metricsRetentionDays,
+    boolean metricsCpu,
+    boolean metricsAllocation,
+    boolean prometheusEnabled,
+    int prometheusPort,
+    String prometheusBind
 ) {
     private static final Duration DEFAULT_SAMPLE_INTERVAL = Duration.ofSeconds(10);
     private static final Duration MIN_SAMPLE_INTERVAL = Duration.ofSeconds(5);
     private static final Duration MAX_SAMPLE_INTERVAL = Duration.ofMinutes(5);
     private static final int DEFAULT_METRICS_RETENTION_DAYS = 7;
+    private static final int DEFAULT_PROMETHEUS_PORT = 9099;
+    private static final String DEFAULT_PROMETHEUS_BIND = "127.0.0.1";
 
     public BlackboxConfig {
         Objects.requireNonNull(jfrMaxAge, "jfrMaxAge");
@@ -67,6 +75,11 @@ public record BlackboxConfig(
         if (metricsRetentionDays <= 0) {
             metricsRetentionDays = DEFAULT_METRICS_RETENTION_DAYS;
         }
+        if (prometheusPort <= 0 || prometheusPort > 65535) {
+            prometheusPort = DEFAULT_PROMETHEUS_PORT;
+        }
+        prometheusBind = prometheusBind == null || prometheusBind.isBlank()
+            ? DEFAULT_PROMETHEUS_BIND : prometheusBind;
     }
 
     public BlackboxConfig(
@@ -84,7 +97,8 @@ public record BlackboxConfig(
     ) {
         this(jfrMaxAge, jfrMaxSizeBytes, jfrRecordingName, jfrDisabledEvents, triggerPolicy,
              capturePolicy, discordWebhook, postIncidentMaxWait, jfrSnapshotInterval,
-             jfrConfiguration, jfrSampleInterval, false, DEFAULT_METRICS_RETENTION_DAYS);
+             jfrConfiguration, jfrSampleInterval, false, false, DEFAULT_METRICS_RETENTION_DAYS,
+             true, false, false, DEFAULT_PROMETHEUS_PORT, DEFAULT_PROMETHEUS_BIND);
     }
 
     public BlackboxConfig(

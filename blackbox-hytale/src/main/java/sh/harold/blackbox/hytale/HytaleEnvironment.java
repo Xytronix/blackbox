@@ -28,7 +28,7 @@ final class HytaleEnvironment {
         putIfPresent(out, "Hyinit", detectLoader(HYINIT_CLASSES));
         putIfPresent(out, "Hyxin", detectLoader(HYXIN_CLASSES));
         putIfPresent(out, "Server name", serverName());
-        putIfPresent(out, "Hytale version", hytaleVersion());
+        putIfPresent(out, "Hytale version", HytaleServerVersion.get());
         putIfPresent(out, "Container runtime", containerRuntime());
         try {
             List<PluginBase> plugins = PluginManager.get().getPlugins();
@@ -82,15 +82,6 @@ final class HytaleEnvironment {
     private static String serverName() {
         try {
             return com.hypixel.hytale.server.core.HytaleServer.get().getServerName();
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
-    private static String hytaleVersion() {
-        try {
-            return com.hypixel.hytale.server.core.HytaleServer.class
-                .getPackage().getImplementationVersion();
         } catch (Throwable t) {
             return null;
         }

@@ -5,6 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import com.hypixel.hytale.metrics.metric.HistoricMetric;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -19,6 +22,7 @@ final class HytaleTickSystems {
     private static final int PERIOD_1M = 1;
     private static final int PERIOD_5M = 2;
     private static final String DISABLED_NOTE = "system metrics disabled";
+    private static final long STORE_THREAD_TIMEOUT_MS = 250;
 
     private HytaleTickSystems() {
     }
@@ -42,6 +46,8 @@ final class HytaleTickSystems {
 
     private record Row(String system, String world, double avg1m, double max1m, double avg5m, double max5m) {}
 
+    private record WorldRows(List<Row> rows, boolean sawMetric) {}
+
     private static Map<String, String> entries() {
         List<Row> rows = new ArrayList<>();
         boolean sawMetric = false;
@@ -51,8 +57,9 @@ final class HytaleTickSystems {
             if (worldName == null || worldName.isBlank() || world == null) {
                 continue;
             }
-            List<Row> worldRows = new ArrayList<>();
-            try {
+            WorldRows worldResult = onStoreThread(world, () -> {
+                List<Row> collected = new ArrayList<>();
+                boolean seen = false;
                 var store = world.getEntityStore().getStore();
                 var data = store.getRegistry().getData();
                 HistoricMetric[] metrics = store.getSystemMetrics();
@@ -62,7 +69,7 @@ final class HytaleTickSystems {
                     if (metric == null) {
                         continue;
                     }
-                    sawMetric = true;
+                    seen = true;
                     try {
                         double avg1m = nanosToMs(metric.getAverage(PERIOD_1M));
                         double max1m = nanosToMs(metric.calculateMax(PERIOD_1M));
@@ -71,13 +78,20 @@ final class HytaleTickSystems {
                         if (avg1m <= 0 && max1m <= 0 && avg5m <= 0) {
                             continue;
                         }
-                        worldRows.add(new Row(systemName(data.getSystem(i)), worldName,
+                        collected.add(new Row(systemName(data.getSystem(i)), worldName,
                             avg1m, max1m, avg5m, max5m));
                     } catch (Throwable ignored) {
                     }
                 }
-            } catch (Throwable ignored) {
+                return new WorldRows(collected, seen);
+            });
+            if (worldResult == null) {
+                continue;
             }
+            if (worldResult.sawMetric()) {
+                sawMetric = true;
+            }
+            List<Row> worldRows = worldResult.rows();
             worldRows.sort((a, b) -> Double.compare(b.avg1m(), a.avg1m()));
             rows.addAll(worldRows.subList(0, Math.min(PER_WORLD_LIMIT, worldRows.size())));
         }
@@ -112,12 +126,12 @@ final class HytaleTickSystems {
                 if (worldName == null || worldName.isBlank() || world == null) {
                     continue;
                 }
-                try {
+                List<SystemSample> worldSamples = onStoreThread(world, () -> {
                     var store = world.getEntityStore().getStore();
                     var data = store.getRegistry().getData();
                     HistoricMetric[] metrics = store.getSystemMetrics();
                     int size = Math.min(data.getSystemSize(), metrics.length);
-                    List<SystemSample> worldSamples = new ArrayList<>();
+                    List<SystemSample> collected = new ArrayList<>();
                     for (int i = 0; i < size; i++) {
                         HistoricMetric metric = metrics[i];
                         if (metric == null) {
@@ -125,18 +139,37 @@ final class HytaleTickSystems {
                         }
                         double avgMs = nanosToMs(metric.getAverage(PERIOD_1S));
                         if (avgMs > 0) {
-                            worldSamples.add(new SystemSample(worldName, systemName(data.getSystem(i)), avgMs));
+                            collected.add(new SystemSample(worldName, systemName(data.getSystem(i)), avgMs));
                         }
                     }
-                    worldSamples.sort((a, b) -> Double.compare(b.avgMs(), a.avgMs()));
-                    samples.addAll(worldSamples.subList(0, Math.min(perWorldLimit, worldSamples.size())));
-                } catch (Throwable ignored) {
+                    return collected;
+                });
+                if (worldSamples == null) {
+                    continue;
                 }
+                worldSamples.sort((a, b) -> Double.compare(b.avgMs(), a.avgMs()));
+                samples.addAll(worldSamples.subList(0, Math.min(perWorldLimit, worldSamples.size())));
             }
         } catch (Throwable t) {
             return List.of();
         }
         return samples;
+    }
+
+    private static <T> T onStoreThread(World world, Supplier<T> task) {
+        CompletableFuture<T> future = new CompletableFuture<>();
+        try {
+            world.execute(() -> {
+                try {
+                    future.complete(task.get());
+                } catch (Throwable t) {
+                    future.completeExceptionally(t);
+                }
+            });
+            return future.get(STORE_THREAD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     private static String systemName(Object system) {

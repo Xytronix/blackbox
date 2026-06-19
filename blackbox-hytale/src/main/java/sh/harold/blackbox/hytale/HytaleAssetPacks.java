@@ -8,7 +8,6 @@ import java.util.TreeMap;
 
 import com.hypixel.hytale.assetstore.AssetPack;
 import com.hypixel.hytale.common.plugin.PluginManifest;
-import com.hypixel.hytale.server.core.HytaleServer;
 import com.hypixel.hytale.server.core.asset.AssetModule;
 
 import sh.harold.blackbox.core.incident.DiagnosticSection;
@@ -31,7 +30,7 @@ final class HytaleAssetPacks {
 
     private static Map<String, String> entries() {
         Map<String, String> sorted = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        String serverVersion = serverVersion();
+        String serverVersion = HytaleServerVersion.get();
         try {
             List<AssetPack> packs = AssetModule.get().getAssetPacks();
             for (AssetPack pack : packs) {
@@ -81,11 +80,4 @@ final class HytaleAssetPacks {
         }
     }
 
-    private static String serverVersion() {
-        try {
-            return HytaleServer.class.getPackage().getImplementationVersion();
-        } catch (Throwable t) {
-            return null;
-        }
-    }
 }

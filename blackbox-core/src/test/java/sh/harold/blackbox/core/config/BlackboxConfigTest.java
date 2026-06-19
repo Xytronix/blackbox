@@ -47,4 +47,38 @@ class BlackboxConfigTest {
     void keepsSampleIntervalInRange() {
         assertEquals(Duration.ofSeconds(30), withSampleInterval(Duration.ofSeconds(30)).jfrSampleInterval());
     }
+
+    private static BlackboxConfig prometheus(int port, String bind) {
+        return new BlackboxConfig(
+            Duration.ofMinutes(5),
+            0L,
+            "blackbox",
+            List.of(),
+            new TriggerPolicy(Duration.ofMinutes(1), Duration.ofSeconds(5), 2000, 10000, 100, 250),
+            new CapturePolicy(new RetentionPolicy(10, 0L, null)),
+            new DiscordWebhookConfig("", Duration.ofMinutes(5), Duration.ofSeconds(10), "Blackbox"),
+            Duration.ZERO,
+            Duration.ZERO,
+            "default",
+            Duration.ofSeconds(10),
+            false,
+            true,
+            7,
+            true,
+            false,
+            true,
+            port,
+            bind
+        );
+    }
+
+    @Test
+    void defaultsPrometheusPortWhenInvalid() {
+        assertEquals(9099, prometheus(0, "127.0.0.1").prometheusPort());
+    }
+
+    @Test
+    void defaultsPrometheusBindWhenBlank() {
+        assertEquals("127.0.0.1", prometheus(9099, "  ").prometheusBind());
+    }
 }

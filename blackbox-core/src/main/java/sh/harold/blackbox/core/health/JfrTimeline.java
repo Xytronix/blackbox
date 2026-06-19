@@ -59,7 +59,11 @@ public final class JfrTimeline {
     public record HotMethod(String method, long samples, List<String> callers) {}
 
     public record Alloc(long totalBytes, Map<String, Long> bySubsystem, Map<String, Long> byThread,
-                        Map<String, Long> byClass, Map<String, Long> byMod) {}
+                        Map<String, Long> byClass, Map<String, Long> byMod, List<WorldAlloc> byWorld) {}
+
+    public record WorldCpu(String world, long samples, Map<String, Long> subsystems, Map<String, Long> mods) {}
+
+    public record WorldAlloc(String world, long bytes, Map<String, Long> bySubsystem, Map<String, Long> byMod) {}
 
     public record WorldTicks(double[] tps, double[] mspt) {}
 
@@ -86,7 +90,7 @@ public final class JfrTimeline {
 
     public record GcCause(String cause, long count, double totalPauseMs) {}
 
-    public record Flame(String name, long samples, List<Flame> children) {}
+    public record Flame(String name, long samples, List<Flame> children, int owner) {}
 
     public record ThreadLane(String name, int[] states) {}
 
@@ -99,6 +103,7 @@ public final class JfrTimeline {
     static final class FlameNode {
         final String name;
         long samples;
+        int owner;
         final Map<String, FlameNode> children = new LinkedHashMap<>();
 
         FlameNode(String name) {
@@ -130,6 +135,7 @@ public final class JfrTimeline {
     private final List<HotMethod> hotMethods;
     private final Map<String, Long> worldSamples;
     private final Map<String, Long> subsystems;
+    private final List<WorldCpu> cpuByWorld;
     private final Map<String, String> threadStates;
     private final Map<String, WorldTicks> ticks;
     private final double[] playersSeries;
@@ -162,6 +168,7 @@ public final class JfrTimeline {
     private final double[] diskWriteSeries;
     private final List<SlowIo> slowIo;
     private final double[] entitiesSeries;
+    private final double[] chunksSeries;
     private final long[] heapCommittedSeries;
     private final long[] hostMemSeries;
     private final long swapFree;
@@ -174,6 +181,7 @@ public final class JfrTimeline {
                         double[] gcPauseSeries, GcStats gc, GcConfig gcConfig, List<ExplicitGc> explicitGcs,
                         long nmtCommitted, CpuInfo cpuInfo, Map<String, String> sysProps, long heapMax,
                         List<HotMethod> hotMethods, Map<String, Long> worldSamples, Map<String, Long> subsystems,
+                        List<WorldCpu> cpuByWorld,
                         Map<String, String> threadStates, Map<String, WorldTicks> ticks, double[] playersSeries,
                         String osName, Alloc alloc, double[] exceptionsSeries,
                         long[] explicitGcTimes, String jvmArgs, String javaArgs,
@@ -185,7 +193,8 @@ public final class JfrTimeline {
                         Flame flame, List<ThreadLane> threadTimeline, List<ModCpu> cpuByMod,
                         long[] diskFreeSeries, long diskTotal,
                         double[] diskReadSeries, double[] diskWriteSeries, List<SlowIo> slowIo,
-                        double[] entitiesSeries, long[] heapCommittedSeries, long[] hostMemSeries,
+                        double[] entitiesSeries, double[] chunksSeries,
+                        long[] heapCommittedSeries, long[] hostMemSeries,
                         long swapFree, long swapTotal, List<NetIface> netOthers,
                         HostCpu hostCpu, Safepoint safepoint) {
         this.buckets = buckets;
@@ -212,6 +221,7 @@ public final class JfrTimeline {
         this.hotMethods = hotMethods;
         this.worldSamples = worldSamples;
         this.subsystems = subsystems;
+        this.cpuByWorld = cpuByWorld;
         this.threadStates = threadStates;
         this.ticks = ticks;
         this.playersSeries = playersSeries;
@@ -242,6 +252,7 @@ public final class JfrTimeline {
         this.slowIo = slowIo;
         this.diskTotal = diskTotal;
         this.entitiesSeries = entitiesSeries;
+        this.chunksSeries = chunksSeries;
         this.heapCommittedSeries = heapCommittedSeries;
         this.hostMemSeries = hostMemSeries;
         this.swapFree = swapFree;
@@ -275,6 +286,7 @@ public final class JfrTimeline {
     public List<HotMethod> hotMethods() { return hotMethods; }
     public Map<String, Long> worldSamples() { return worldSamples; }
     public Map<String, Long> subsystems() { return subsystems; }
+    public List<WorldCpu> cpuByWorld() { return cpuByWorld; }
     public Map<String, String> threadStates() { return threadStates; }
     public Map<String, WorldTicks> ticks() { return ticks; }
     public double[] playersSeries() { return playersSeries; }
@@ -307,6 +319,7 @@ public final class JfrTimeline {
     public List<ThreadLane> threadTimeline() { return threadTimeline; }
     public List<ModCpu> cpuByMod() { return cpuByMod; }
     public double[] entitiesSeries() { return entitiesSeries; }
+    public double[] chunksSeries() { return chunksSeries; }
     public long[] heapCommittedSeries() { return heapCommittedSeries; }
     public long[] hostMemSeries() { return hostMemSeries; }
     public long swapFree() { return swapFree; }
@@ -371,11 +384,13 @@ public final class JfrTimeline {
         Map<String, Map<String, long[]>> chainsByMethod = new HashMap<>();
         Map<String, long[]> worldSamples = new HashMap<>();
         Map<String, long[]> subsystems = new HashMap<>();
+        Map<String, Map<String, long[]>> subsystemsByWorld = new HashMap<>();
         Map<String, String> threadStates = new HashMap<>();
         Map<String, List<Pt>> tpsByWorld = new HashMap<>();
         Map<String, List<Pt>> msptByWorld = new HashMap<>();
         Map<String, List<Pt>> playersByWorld = new HashMap<>();
         Map<String, List<Pt>> entitiesByWorld = new HashMap<>();
+        Map<String, List<Pt>> chunksByWorld = new HashMap<>();
         List<Pt> heapCommitted = new ArrayList<>();
         List<Pt> hostMem = new ArrayList<>();
         long swapFree = -1;
@@ -393,6 +408,8 @@ public final class JfrTimeline {
         Map<String, long[]> allocThread = new HashMap<>();
         Map<String, long[]> allocClass = new HashMap<>();
         Map<String, long[]> allocMod = new HashMap<>();
+        Map<String, Map<String, long[]>> allocSubByWorld = new HashMap<>();
+        Map<String, Map<String, long[]>> allocModByWorld = new HashMap<>();
         Container container = null;
         Map<String, List<Pt>> pingWeightedByWorld = new HashMap<>();
         Map<String, List<Pt>> pingWeightsByWorld = new HashMap<>();
@@ -444,7 +461,7 @@ public final class JfrTimeline {
                             }
                         }
                         recordStack(e.getStackTrace(), samplesByMethod, chainsByMethod, subsystems,
-                            flameRoot, cpuModSamples, cpuModMethods, cpuModThreads, threadName);
+                            subsystemsByWorld, flameRoot, cpuModSamples, cpuModMethods, cpuModThreads, threadName);
                     }
                     case "jdk.CPULoad" -> {
                         cpuJvm.add(new Pt(t, 100.0 * (getD(e, "jvmUser") + getD(e, "jvmSystem"))));
@@ -535,13 +552,13 @@ public final class JfrTimeline {
                     case "jdk.ExceptionStatistics" -> exceptionsCum.add(new Pt(t, getL(e, "throwables")));
                     case "jdk.ObjectAllocationSample" ->
                         allocTotal += recordAlloc(e, getL(e, "weight"), allocSubsystem, allocThread,
-                            allocClass, allocMod);
+                            allocClass, allocMod, allocSubByWorld, allocModByWorld);
                     case "jdk.ObjectAllocationInNewTLAB" ->
                         allocTotal += recordAlloc(e, getL(e, "tlabSize"), allocSubsystem, allocThread,
-                            allocClass, allocMod);
+                            allocClass, allocMod, allocSubByWorld, allocModByWorld);
                     case "jdk.ObjectAllocationOutsideTLAB" ->
                         allocTotal += recordAlloc(e, getL(e, "allocationSize"), allocSubsystem, allocThread,
-                            allocClass, allocMod);
+                            allocClass, allocMod, allocSubByWorld, allocModByWorld);
                     case "jdk.ContainerConfiguration" -> {
                         long quota = getL(e, "cpuQuota");
                         long period = getL(e, "cpuSlicePeriod");
@@ -680,6 +697,11 @@ public final class JfrTimeline {
                                 entitiesByWorld.computeIfAbsent(world, k -> new ArrayList<>())
                                     .add(new Pt(t, entityCount));
                             }
+                            long chunkCount = getL(e, "chunks");
+                            if (chunkCount >= 0 && e.hasField("chunks")) {
+                                chunksByWorld.computeIfAbsent(world, k -> new ArrayList<>())
+                                    .add(new Pt(t, chunkCount));
+                            }
                             double ping = getD(e, "avgPingMs");
                             long pingPlayers = getL(e, "players");
                             if (ping > 0 && pingPlayers > 0) {
@@ -739,6 +761,7 @@ public final class JfrTimeline {
             .forEach(en -> worlds.put(en.getKey(), en.getValue()[0]));
 
         Map<String, Long> subs = orderSubsystems(subsystems);
+        List<WorldCpu> cpuByWorld = buildCpuByWorld(subsystemsByWorld, cpuModThreads);
 
         Map<String, WorldTicks> ticks = new LinkedHashMap<>();
         for (Map.Entry<String, List<Pt>> en : tpsByWorld.entrySet()) {
@@ -751,6 +774,8 @@ public final class JfrTimeline {
         double[] players = sumSeries(playersByWorld.values().stream()
             .map(pts -> bucketLast(pts, lo, hi, buckets)).toList());
         double[] entities = sumSeries(entitiesByWorld.values().stream()
+            .map(pts -> bucketLast(pts, lo, hi, buckets)).toList());
+        double[] chunks = sumSeries(chunksByWorld.values().stream()
             .map(pts -> bucketLast(pts, lo, hi, buckets)).toList());
 
         List<NetIface> netOthers = new ArrayList<>();
@@ -789,7 +814,21 @@ public final class JfrTimeline {
                 .sorted((a, b) -> Long.compare(b.getValue()[0], a.getValue()[0]))
                 .limit(ALLOC_MOD_LIMIT)
                 .forEach(en -> byMod.put(en.getKey(), en.getValue()[0]));
-            alloc = new Alloc(allocTotal, bySubsystem, byThread, byClass, byMod);
+            List<WorldAlloc> byWorld = new ArrayList<>();
+            Set<String> aworlds = new java.util.LinkedHashSet<>(allocSubByWorld.keySet());
+            aworlds.addAll(allocModByWorld.keySet());
+            for (String world : aworlds) {
+                Map<String, Long> ws = orderSubsystems(allocSubByWorld.getOrDefault(world, Map.of()));
+                Map<String, Long> wm = new LinkedHashMap<>();
+                allocModByWorld.getOrDefault(world, Map.of()).entrySet().stream()
+                    .sorted((a, b) -> Long.compare(b.getValue()[0], a.getValue()[0]))
+                    .limit(ALLOC_MOD_LIMIT)
+                    .forEach(en -> wm.put(en.getKey(), en.getValue()[0]));
+                long wb = ws.values().stream().mapToLong(Long::longValue).sum();
+                byWorld.add(new WorldAlloc(world, wb, ws, wm));
+            }
+            byWorld.sort((a, b) -> Long.compare(b.bytes(), a.bytes()));
+            alloc = new Alloc(allocTotal, bySubsystem, byThread, byClass, byMod, byWorld);
         }
 
         List<PluginMetric> pluginMetrics = new ArrayList<>();
@@ -851,8 +890,13 @@ public final class JfrTimeline {
 
         Flame flame = flamePrune(flameRoot, totalSamples);
 
+        Map<String, List<Pt>> threadLaneGroups = new LinkedHashMap<>();
+        for (Map.Entry<String, List<Pt>> en : threadStatePts.entrySet()) {
+            threadLaneGroups.computeIfAbsent(normalizeThreadName(en.getKey()), k -> new ArrayList<>())
+                .addAll(en.getValue());
+        }
         List<ThreadLane> threadTimeline = new ArrayList<>();
-        threadStatePts.entrySet().stream()
+        threadLaneGroups.entrySet().stream()
             .sorted((a, b) -> Integer.compare(b.getValue().size(), a.getValue().size()))
             .limit(THREAD_LANE_LIMIT)
             .forEach(en -> threadTimeline.add(
@@ -901,7 +945,7 @@ public final class JfrTimeline {
             toLongs(bucketLast(threads, minT, maxT, buckets)),
             bucketMaxZeroFilled(gcPause, minT, maxT, buckets),
             gcStats, gcConfig, explicit, nmtCommitted, cpuInfo,
-            Map.copyOf(sysProps), heapMax, hot, worlds, subs,
+            Map.copyOf(sysProps), heapMax, hot, worlds, subs, cpuByWorld,
             Map.copyOf(threadStates), ticks, players, osName, alloc,
             toDeltas(bucketLast(exceptionsCum, lo, hi, buckets)),
             explicitGcTimes.stream().mapToLong(Long::longValue).toArray(), jvmArgs, javaArgs,
@@ -917,6 +961,7 @@ public final class JfrTimeline {
             toRateMBps(bucketLast(diskWrite, lo, hi, buckets), lo, hi, buckets),
             topSlowIo(slowIo),
             entities,
+            chunks,
             toLongs(bucketLast(heapCommitted, lo, hi, buckets)),
             toLongs(bucketLast(hostMem, lo, hi, buckets)),
             swapFree, swapTotal, List.copyOf(netOthers),
@@ -1069,20 +1114,28 @@ public final class JfrTimeline {
 
     private static long recordAlloc(RecordedEvent e, long weight, Map<String, long[]> bySubsystem,
                                     Map<String, long[]> byThread, Map<String, long[]> byClass,
-                                    Map<String, long[]> byMod) {
+                                    Map<String, long[]> byMod,
+                                    Map<String, Map<String, long[]>> allocSubByWorld,
+                                    Map<String, Map<String, long[]>> allocModByWorld) {
         if (weight <= 0) {
             return 0;
         }
+        RecordedThread thread = e.getThread();
+        String threadName = thread == null ? null : thread.getJavaName();
+        String world = worldOf(threadName);
         RecordedStackTrace stack = e.getStackTrace();
         if (stack != null) {
-            bySubsystem.computeIfAbsent(classify(stack.getFrames()), k -> new long[1])[0] += weight;
+            String sub = classify(stack.getFrames());
+            bySubsystem.computeIfAbsent(sub, k -> new long[1])[0] += weight;
+            allocSubByWorld.computeIfAbsent(world, k -> new HashMap<>())
+                .computeIfAbsent(sub, k -> new long[1])[0] += weight;
             String mod = allocMod(stack);
             if (mod != null) {
                 byMod.computeIfAbsent(mod, k -> new long[1])[0] += weight;
+                allocModByWorld.computeIfAbsent(world, k -> new HashMap<>())
+                    .computeIfAbsent(mod, k -> new long[1])[0] += weight;
             }
         }
-        RecordedThread thread = e.getThread();
-        String threadName = thread == null ? null : thread.getJavaName();
         if (threadName != null && !threadName.isBlank()) {
             byThread.computeIfAbsent(threadName, k -> new long[1])[0] += weight;
         }
@@ -1144,7 +1197,8 @@ public final class JfrTimeline {
 
     private static void recordStack(RecordedStackTrace stack, Map<String, long[]> samplesByMethod,
                                     Map<String, Map<String, long[]>> chainsByMethod,
-                                    Map<String, long[]> subsystems, FlameNode flameRoot,
+                                    Map<String, long[]> subsystems,
+                                    Map<String, Map<String, long[]>> subsystemsByWorld, FlameNode flameRoot,
                                     Map<String, long[]> cpuModSamples,
                                     Map<String, Map<String, long[]>> cpuModMethods,
                                     Map<String, Map<String, long[]>> cpuModThreads,
@@ -1158,7 +1212,7 @@ public final class JfrTimeline {
         for (int i = 0; i < frames.size(); i++) {
             RecordedFrame frame = frames.get(i);
             if (frame.isJavaFrame() && frame.getMethod() != null) {
-                leaf = frame.getMethod().getType().getName() + "." + frame.getMethod().getName();
+                leaf = cleanType(frame.getMethod().getType().getName()) + "." + frame.getMethod().getName();
                 leafIndex = i;
                 break;
             }
@@ -1168,15 +1222,23 @@ public final class JfrTimeline {
         }
         samplesByMethod.computeIfAbsent(leaf, k -> new long[1])[0]++;
 
-        List<String> path = new ArrayList<>(Math.min(frames.size(), FLAME_DEPTH_LIMIT));
+        List<String> path = new ArrayList<>(Math.min(frames.size() + 1, FLAME_DEPTH_LIMIT));
+        List<Integer> owners = new ArrayList<>(path.size());
+        path.add(threadName == null || threadName.isBlank() ? "(unknown thread)" : normalizeThreadName(threadName));
+        owners.add(FLAME_OWNER_THREAD);
         for (int i = frames.size() - 1; i >= 0 && path.size() < FLAME_DEPTH_LIMIT; i--) {
             RecordedFrame frame = frames.get(i);
             if (frame.isJavaFrame() && frame.getMethod() != null) {
-                path.add(shortName(frame.getMethod().getType().getName())
-                    + "." + frame.getMethod().getName());
+                String type = cleanType(frame.getMethod().getType().getName());
+                path.add(shortName(type) + "." + frame.getMethod().getName());
+                owners.add(frameOwner(type));
             }
         }
-        flameInsert(flameRoot, path);
+        int[] ownerArr = new int[owners.size()];
+        for (int i = 0; i < ownerArr.length; i++) {
+            ownerArr[i] = owners.get(i);
+        }
+        flameInsert(flameRoot, path, ownerArr);
 
         for (RecordedFrame frame : frames) {
             if (!frame.isJavaFrame() || frame.getMethod() == null) {
@@ -1211,7 +1273,7 @@ public final class JfrTimeline {
             if (added > 0) {
                 chain.append(' ');
             }
-            chain.append(shortName(frame.getMethod().getType().getName()))
+            chain.append(shortName(cleanType(frame.getMethod().getType().getName())))
                 .append('.').append(frame.getMethod().getName());
             added++;
         }
@@ -1225,7 +1287,10 @@ public final class JfrTimeline {
             }
         }
 
-        subsystems.computeIfAbsent(classify(frames), k -> new long[1])[0]++;
+        String sub = classify(frames);
+        subsystems.computeIfAbsent(sub, k -> new long[1])[0]++;
+        subsystemsByWorld.computeIfAbsent(worldOf(threadName), k -> new HashMap<>())
+            .computeIfAbsent(sub, k -> new long[1])[0]++;
     }
 
     private static String classify(List<RecordedFrame> frames) {
@@ -1302,21 +1367,88 @@ public final class JfrTimeline {
         return out;
     }
 
+    static String cleanType(String type) {
+        if (type == null) {
+            return "";
+        }
+        int lam = type.indexOf("$$Lambda");
+        if (lam > 0) {
+            return type.substring(0, lam);
+        }
+        int slash = type.indexOf("/0x");
+        if (slash > 0) {
+            return type.substring(0, slash);
+        }
+        if (type.startsWith("0x")) {
+            return "lambda@" + type.substring(Math.max(2, type.length() - 6));
+        }
+        return type;
+    }
+
     private static String shortName(String type) {
         int i = type.lastIndexOf('.');
         return i < 0 ? type : type.substring(i + 1);
     }
 
+    private static String worldOf(String threadName) {
+        if (threadName == null) {
+            return "(shared)";
+        }
+        int i = threadName.indexOf(" - ");
+        return i < 0 ? "(shared)" : threadName.substring(i + 3);
+    }
+
+    private static List<WorldCpu> buildCpuByWorld(Map<String, Map<String, long[]>> subsystemsByWorld,
+                                                  Map<String, Map<String, long[]>> cpuModThreads) {
+        Map<String, Map<String, Long>> modsByWorld = new HashMap<>();
+        cpuModThreads.forEach((mod, threads) -> threads.forEach((thr, c) ->
+            modsByWorld.computeIfAbsent(worldOf(thr), k -> new HashMap<>()).merge(mod, c[0], Long::sum)));
+        Set<String> worlds = new java.util.LinkedHashSet<>(subsystemsByWorld.keySet());
+        worlds.addAll(modsByWorld.keySet());
+        List<WorldCpu> out = new ArrayList<>();
+        for (String world : worlds) {
+            Map<String, Long> subs = orderSubsystems(subsystemsByWorld.getOrDefault(world, Map.of()));
+            Map<String, Long> mods = new LinkedHashMap<>();
+            modsByWorld.getOrDefault(world, Map.of()).entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .limit(MOD_CPU_LIMIT)
+                .forEach(en -> mods.put(en.getKey(), en.getValue()));
+            long total = subs.values().stream().mapToLong(Long::longValue).sum();
+            out.add(new WorldCpu(world, total, subs, mods));
+        }
+        out.sort((a, b) -> Long.compare(b.samples(), a.samples()));
+        return out;
+    }
+
+    private static final int FLAME_OWNER_THREAD = 0;
+    private static final int FLAME_OWNER_ENGINE = 1;
+    private static final int FLAME_OWNER_MOD = 2;
+    private static final int FLAME_OWNER_JDK = 3;
+
+    private static int frameOwner(String type) {
+        if (type.startsWith(HYTALE_PACKAGE)) {
+            return FLAME_OWNER_ENGINE;
+        }
+        if (type.startsWith("java.") || type.startsWith("jdk.") || type.startsWith("sun.")
+            || type.startsWith("javax.") || type.startsWith("com.sun.")) {
+            return FLAME_OWNER_JDK;
+        }
+        return FLAME_OWNER_MOD;
+    }
+
     static void flameInsert(FlameNode root, List<String> path) {
+        flameInsert(root, path, null);
+    }
+
+    static void flameInsert(FlameNode root, List<String> path, int[] owners) {
         root.samples++;
         FlameNode node = root;
-        int depth = 0;
-        for (String name : path) {
-            if (depth++ >= FLAME_DEPTH_LIMIT) {
-                break;
-            }
-            node = node.children.computeIfAbsent(name, FlameNode::new);
+        for (int i = 0; i < path.size() && i < FLAME_DEPTH_LIMIT; i++) {
+            node = node.children.computeIfAbsent(path.get(i), FlameNode::new);
             node.samples++;
+            if (owners != null && i < owners.length && node.owner == 0) {
+                node.owner = owners[i];
+            }
         }
     }
 
@@ -1348,7 +1480,7 @@ public final class JfrTimeline {
                 children.add(toFlame(child, threshold));
             }
         }
-        return new Flame(node.name, node.samples, children);
+        return new Flame(node.name, node.samples, children, node.owner);
     }
 
     private static int stateCode(String mapped) {
@@ -1708,7 +1840,7 @@ public final class JfrTimeline {
         }
         for (RecordedFrame frame : stack.getFrames()) {
             if (frame.isJavaFrame() && frame.getMethod() != null) {
-                return shortName(frame.getMethod().getType().getName())
+                return shortName(cleanType(frame.getMethod().getType().getName()))
                     + "." + frame.getMethod().getName();
             }
         }

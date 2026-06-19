@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import sh.harold.blackbox.core.incident.Severity;
 import sh.harold.blackbox.core.testutil.MutableClock;
@@ -64,9 +65,40 @@ class TriggerEngineTest {
         assertEquals(TriggerDecision.ACCEPT, engine.evaluate(otherScope).decision());
 
         clock.advance(Duration.ofSeconds(1));
-        TriggerEvent secondStall = new TriggerEvent(TriggerKind.HEARTBEAT_STALL, "other2", clock.instant(),
-            Map.of("stallMs", "2000"));
-        assertEquals(TriggerDecision.COOLDOWN, engine.evaluate(secondStall).decision());
+        TriggerEvent degraded = new TriggerEvent(TriggerKind.TICK_DEGRADED, "other2", clock.instant(),
+            Map.of("tickAvgMs", "120"));
+        assertEquals(TriggerDecision.COOLDOWN, engine.evaluate(degraded).decision());
+    }
+
+    @Test
+    void heartbeatStallExemptFromCooldownByDefault() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-01-11T00:00:00Z"), ZoneOffset.UTC);
+        TriggerPolicy policy = new TriggerPolicy(Duration.ofSeconds(30), Duration.ZERO, 1000, 5000, 100, 250);
+        TriggerEngine engine = new TriggerEngine(clock, policy);
+
+        TriggerEvent minor = new TriggerEvent(TriggerKind.GC_PRESSURE, "jvm", clock.instant(), Map.of("gcPct", "31"));
+        assertEquals(TriggerDecision.ACCEPT, engine.evaluate(minor).decision());
+
+        clock.advance(Duration.ofSeconds(5));
+        TriggerEvent stall = new TriggerEvent(TriggerKind.HEARTBEAT_STALL, "world", clock.instant(),
+            Map.of("stallMs", "300000"));
+        assertEquals(TriggerDecision.ACCEPT, engine.evaluate(stall).decision());
+    }
+
+    @Test
+    void cooldownExemptKindsAreConfigurable() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-01-11T00:00:00Z"), ZoneOffset.UTC);
+        TriggerPolicy policy = new TriggerPolicy(Duration.ofSeconds(30), Duration.ZERO, 1000, 5000, 100, 250,
+            DetectorPolicy.defaults(), Set.of(TriggerKind.WORLD_FAILURE));
+        TriggerEngine engine = new TriggerEngine(clock, policy);
+
+        TriggerEvent minor = new TriggerEvent(TriggerKind.GC_PRESSURE, "jvm", clock.instant(), Map.of("gcPct", "31"));
+        assertEquals(TriggerDecision.ACCEPT, engine.evaluate(minor).decision());
+
+        clock.advance(Duration.ofSeconds(5));
+        TriggerEvent stall = new TriggerEvent(TriggerKind.HEARTBEAT_STALL, "world", clock.instant(),
+            Map.of("stallMs", "300000"));
+        assertEquals(TriggerDecision.COOLDOWN, engine.evaluate(stall).decision());
     }
 
     @Test

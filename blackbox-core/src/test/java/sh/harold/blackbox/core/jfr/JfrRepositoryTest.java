@@ -2,10 +2,12 @@ package sh.harold.blackbox.core.jfr;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import jdk.jfr.Event;
 import jdk.jfr.Label;
@@ -68,6 +70,57 @@ class JfrRepositoryTest {
     @Test
     void merge_emptyChunkListReturnsFalse(@TempDir Path dir) throws Exception {
         assertFalse(JfrRepository.merge(List.of(), dir.resolve("none.jfr")));
+    }
+
+    @Test
+    void finalizeOrphan_clearsLockedChunkStateByte(@TempDir Path dir) throws Exception {
+        Path recording = recordMarkers(dir.resolve("orphan.jfr"), 5);
+        byte[] data = Files.readAllBytes(recording);
+        data[64] = 0x13;
+        Files.write(recording, data);
+        assertThrows(Exception.class, () -> readMarkers(recording));
+
+        assertTrue(JfrRepository.finalizeOrphan(recording));
+        assertEquals(5, readMarkers(recording));
+    }
+
+    @Test
+    void finalizeOrphan_dropsTruncatedTrailingChunk(@TempDir Path dir) throws Exception {
+        Path a = recordMarkers(dir.resolve("a.jfr"), 3);
+        Path b = recordMarkers(dir.resolve("b.jfr"), 4);
+        Path merged = dir.resolve("merged.jfr");
+        assertTrue(JfrRepository.merge(List.of(a, b), merged));
+
+        byte[] partial = new byte[68];
+        partial[0] = 'F';
+        partial[1] = 'L';
+        partial[2] = 'R';
+        partial[3] = 0;
+        try (var out = Files.newOutputStream(merged, StandardOpenOption.APPEND)) {
+            out.write(partial);
+        }
+
+        assertTrue(JfrRepository.finalizeOrphan(merged));
+        assertEquals(7, readMarkers(merged));
+    }
+
+    @Test
+    void finalizeOrphan_returnsFalseWhenNothingSalvageable(@TempDir Path dir) throws Exception {
+        Path junk = dir.resolve("junk.jfr");
+        Files.write(junk, new byte[]{1, 2, 3, 4});
+        assertFalse(JfrRepository.finalizeOrphan(junk));
+    }
+
+    private static int readMarkers(Path recording) throws Exception {
+        int markers = 0;
+        try (RecordingFile file = new RecordingFile(recording)) {
+            while (file.hasMoreEvents()) {
+                if (file.readEvent().getEventType().getName().equals("test.Marker")) {
+                    markers++;
+                }
+            }
+        }
+        return markers;
     }
 
     private static Path recordMarkers(Path target, int count) throws Exception {

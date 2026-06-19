@@ -22,6 +22,11 @@ public final class BundleExtrasRegistry implements BundleExtrasProvider {
         providers.add(provider);
     }
 
+    public void unregister(BundleExtrasProvider provider) {
+        Objects.requireNonNull(provider, "provider");
+        providers.remove(provider);
+    }
+
     @Override
     public List<BundleAttachment> extras(IncidentReport report, TriggerEvent triggerEvent) {
         List<BundleAttachment> all = new ArrayList<>();

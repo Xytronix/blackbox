@@ -16,6 +16,10 @@ public interface BundleExtrasProvider {
         return List.of();
     }
 
+    default List<BundleAttachment> configExtras() {
+        return List.of();
+    }
+
     static BundleExtrasProvider none() {
         return (report, triggerEvent) -> List.of();
     }

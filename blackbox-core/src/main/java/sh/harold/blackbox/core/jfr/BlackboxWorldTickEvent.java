@@ -28,6 +28,9 @@ public final class BlackboxWorldTickEvent extends Event {
     @Label("Entities")
     public int entities;
 
+    @Label("Chunks")
+    public int chunks;
+
     @Label("Avg ping")
     public double avgPingMs;
 }

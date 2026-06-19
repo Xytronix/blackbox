@@ -181,6 +181,23 @@ public final class HostCpuStats {
         }
     }
 
+    public static String cpusetCpus() {
+        String v2 = readFirstLine(Path.of("/sys/fs/cgroup/cpuset.cpus.effective"));
+        return v2 != null ? v2 : readFirstLine(Path.of("/sys/fs/cgroup/cpuset/cpuset.cpus"));
+    }
+
+    private static String readFirstLine(Path path) {
+        try {
+            if (!Files.isReadable(path)) {
+                return null;
+            }
+            String value = Files.readString(path).trim();
+            return value.isEmpty() ? null : value;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private static long readKeyedLong(Path path, String key) {
         try {
             if (!Files.isReadable(path)) {

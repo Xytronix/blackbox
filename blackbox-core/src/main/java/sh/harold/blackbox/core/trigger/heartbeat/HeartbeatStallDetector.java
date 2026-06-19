@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,12 +53,13 @@ public final class HeartbeatStallDetector {
             boolean wasStalled = inStall.getOrDefault(scope, false);
             if (stalled && !wasStalled) {
                 inStall.put(scope, true);
-                events.add(new TriggerEvent(
-                    TriggerKind.HEARTBEAT_STALL,
-                    scope,
-                    now,
-                    Map.of("stallMs", Long.toString(stallMs))
-                ));
+                Map<String, String> attrs = new LinkedHashMap<>();
+                attrs.put("stallMs", Long.toString(stallMs));
+                Long threadId = registry.lastBeatThreadId(scope);
+                if (threadId != null) {
+                    attrs.put("threadId", Long.toString(threadId));
+                }
+                events.add(new TriggerEvent(TriggerKind.HEARTBEAT_STALL, scope, now, attrs));
             } else if (!stalled && wasStalled) {
                 inStall.put(scope, false);
             }

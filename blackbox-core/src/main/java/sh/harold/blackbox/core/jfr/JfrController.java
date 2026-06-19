@@ -24,6 +24,7 @@ public final class JfrController implements AutoCloseable {
     private final String recordingName;
     private final List<String> disabledEvents;
     private final String configurationName;
+    private final boolean oldObjectSampling;
     private Recording recording;
     private final System.Logger logger = System.getLogger(JfrController.class.getName());
 
@@ -37,12 +38,18 @@ public final class JfrController implements AutoCloseable {
 
     public JfrController(Duration maxAge, long maxSizeBytes, String recordingName,
                          List<String> disabledEvents, String configurationName) {
+        this(maxAge, maxSizeBytes, recordingName, disabledEvents, configurationName, false);
+    }
+
+    public JfrController(Duration maxAge, long maxSizeBytes, String recordingName,
+                         List<String> disabledEvents, String configurationName, boolean oldObjectSampling) {
         this.maxAge = Objects.requireNonNull(maxAge, "maxAge");
         this.maxSizeBytes = maxSizeBytes;
         this.recordingName = Objects.requireNonNull(recordingName, "recordingName");
         this.disabledEvents = List.copyOf(Objects.requireNonNull(disabledEvents, "disabledEvents"));
         this.configurationName = configurationName == null || configurationName.isBlank()
             ? DEFAULT_CONFIGURATION : configurationName;
+        this.oldObjectSampling = oldObjectSampling;
     }
 
     public void start() {
@@ -58,6 +65,24 @@ public final class JfrController implements AutoCloseable {
             ? configurationName : configurationOverride);
     }
 
+    public synchronized void applyConfiguration(String configurationOverride) {
+        Recording rec = requireRecording();
+        String name = configurationOverride == null || configurationOverride.isBlank()
+            ? configurationName : configurationOverride;
+        try {
+            rec.setSettings(Configuration.getConfiguration(name).getSettings());
+        } catch (Exception e) {
+            logger.log(System.Logger.Level.WARNING,
+                "Failed to apply JFR configuration '" + name + "' to the live recording.", e);
+            return;
+        }
+        enableMarkerEvent(rec);
+        if (oldObjectSampling) {
+            enableOldObjectSampling(rec);
+        }
+        disableConfiguredEvents(rec);
+    }
+
     private void startWith(String configuration) {
         Recording created = createConfiguredRecording(configuration);
         created.setName(recordingName);
@@ -70,7 +95,9 @@ public final class JfrController implements AutoCloseable {
                 + "fills the disk. Set Jfr.MaxAge or Jfr.MaxSizeBytes to a positive value to bound it.");
         }
         enableMarkerEvent(created);
-        enableOldObjectSampling(created);
+        if (oldObjectSampling) {
+            enableOldObjectSampling(created);
+        }
         disableConfiguredEvents(created);
         created.start();
         this.recording = created;

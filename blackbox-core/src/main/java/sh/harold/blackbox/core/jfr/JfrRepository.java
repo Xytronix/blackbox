@@ -14,6 +14,11 @@ public final class JfrRepository {
 
     private static final String FLIGHT_RECORDER_OPTIONS = "FlightRecorderOptions=";
 
+    private static final byte[] CHUNK_MAGIC = {'F', 'L', 'R', 0};
+    private static final int CHUNK_HEADER_SIZE = 68;
+    private static final int CHUNK_SIZE_OFFSET = 8;
+    private static final int FILE_STATE_OFFSET = 64;
+
     private JfrRepository() {
     }
 
@@ -83,5 +88,59 @@ public final class JfrRepository {
             }
         }
         return true;
+    }
+
+    public static boolean finalizeOrphan(Path recording) throws IOException {
+        if (recording == null || !Files.isRegularFile(recording)) {
+            return false;
+        }
+        byte[] data = Files.readAllBytes(recording);
+        int length = data.length;
+        int offset = 0;
+        int completeEnd = 0;
+        boolean modified = false;
+        while (offset + CHUNK_HEADER_SIZE <= length) {
+            if (!hasChunkMagic(data, offset)) {
+                break;
+            }
+            long chunkSize = readLongBE(data, offset + CHUNK_SIZE_OFFSET);
+            if (chunkSize <= 0 || offset + chunkSize > length) {
+                break;
+            }
+            if (data[offset + FILE_STATE_OFFSET] != 0) {
+                data[offset + FILE_STATE_OFFSET] = 0;
+                modified = true;
+            }
+            offset += (int) chunkSize;
+            completeEnd = offset;
+        }
+        if (completeEnd == 0) {
+            return false;
+        }
+        if (completeEnd < length) {
+            data = java.util.Arrays.copyOf(data, completeEnd);
+            modified = true;
+        }
+        if (modified) {
+            Files.write(recording, data);
+        }
+        return true;
+    }
+
+    private static boolean hasChunkMagic(byte[] data, int offset) {
+        for (int i = 0; i < CHUNK_MAGIC.length; i++) {
+            if (data[offset + i] != CHUNK_MAGIC[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static long readLongBE(byte[] data, int offset) {
+        long value = 0;
+        for (int i = 0; i < 8; i++) {
+            value = (value << 8) | (data[offset + i] & 0xFF);
+        }
+        return value;
     }
 }

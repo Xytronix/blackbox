@@ -43,12 +43,13 @@ final class BlackboxCommand extends CommandBase {
         addSubCommand(new TriggersCommand(runtime));
         addSubCommand(new HistogramCommand(runtime));
         addSubCommand(new ProfileCommand(runtime));
+        addSubCommand(new TrendCommand(runtime));
         addSubCommand(new ReloadCommand(runtime));
     }
 
     @Override
     protected void executeSync(CommandContext context) {
-        context.sendMessage(Message.raw("Usage: /blackbox dump|status|list|open|triggers|histogram|profile|reload"));
+        context.sendMessage(Message.raw("Usage: /blackbox dump|status|list|open|triggers|histogram|profile|trend|reload"));
     }
 
     private abstract static class RuntimeAsyncCommand extends AbstractAsyncCommand {
@@ -208,6 +209,13 @@ final class BlackboxCommand extends CommandBase {
                         ? ">= " + detectors.playerDropPct() + "% within " + detectors.playerDropWindow()
                             + ", min " + detectors.playerDropMinPlayers() + " players"
                         : "disabled")));
+                context.sendMessage(Message.raw("  log error: "
+                    + (detectors.modules().logError()
+                        ? "on (requireThrowable=" + detectors.logErrorRequireThrowable()
+                            + ", skipSentry=" + detectors.logErrorSkipSentry()
+                            + ", dedupe " + detectors.logErrorDedupeWindow()
+                            + ", ignore " + detectors.logErrorIgnore().size() + ")"
+                        : "disabled")));
             }, executor());
         }
     }
@@ -238,9 +246,13 @@ final class BlackboxCommand extends CommandBase {
     private static final class ProfileCommand extends RuntimeAsyncCommand {
         private final DefaultArg<Integer> minutesArg =
             withDefaultArg("minutes", "Profiling duration in minutes (1-30)", ArgTypes.INTEGER, 5, "5");
+        private final DefaultArg<Boolean> keepBufferArg =
+            withDefaultArg("keep-buffer", "Keep the rolling buffer so one bundle spans before + after (default)",
+                ArgTypes.BOOLEAN, true, "true");
 
         private ProfileCommand(BlackboxRuntime runtime) {
-            super("profile", "Record with the high-fidelity profile preset, then capture", runtime);
+            super("profile", "Record one high-fidelity profiling bundle spanning before + after the command "
+                + "(keep-buffer=false for a fresh recording instead)", runtime);
         }
 
         @Override
@@ -248,16 +260,57 @@ final class BlackboxCommand extends CommandBase {
             return runAsync(context, () -> {
                 Integer requested = context.get(minutesArg);
                 int minutes = Math.max(1, Math.min(30, requested == null ? 5 : requested));
-                String error = runtime.startProfileSession(minutes);
+                boolean keepBuffer = Boolean.TRUE.equals(context.get(keepBufferArg));
+                String error = runtime.startProfileSession(minutes, keepBuffer);
                 if (error != null) {
                     context.sendMessage(Message.raw(error));
                     return;
                 }
-                context.sendMessage(Message.raw(
-                    "Profile session started: the rolling buffer was discarded and a fresh high-fidelity "
-                    + "recording is running."));
-                context.sendMessage(Message.raw("A capture fires automatically in " + minutes
-                    + " min, then the recording reverts to the configured preset."));
+                if (keepBuffer) {
+                    context.sendMessage(Message.raw(
+                        "Profile session started: high-fidelity recording for the next " + minutes
+                        + " min, captured as one bundle spanning the lead-up and the session."));
+                    context.sendMessage(Message.raw("A capture fires automatically in " + minutes + " min."));
+                } else {
+                    context.sendMessage(Message.raw(
+                        "Profile session started: the rolling buffer was discarded and a fresh high-fidelity "
+                        + "recording is running."));
+                    context.sendMessage(Message.raw("A capture fires automatically in " + minutes
+                        + " min, then the recording reverts to the configured preset."));
+                }
+            }, executor());
+        }
+    }
+
+    private static final class TrendCommand extends RuntimeAsyncCommand {
+        private final DefaultArg<Integer> daysArg =
+            withDefaultArg("days", "How many days back to chart (1-30)", ArgTypes.INTEGER, 7, "7");
+
+        private TrendCommand(BlackboxRuntime runtime) {
+            super("trend", "Build an HTML report of health metric trends over time", runtime);
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeAsync(CommandContext context) {
+            return runAsync(context, () -> {
+                Integer requested = context.get(daysArg);
+                int days = Math.max(1, Math.min(30, requested == null ? 7 : requested));
+                try {
+                    Path out = runtime.generateTrendReport(days);
+                    if (out == null) {
+                        if (!runtime.config().metricsEnabled()) {
+                            context.sendMessage(Message.raw(
+                                "No health metrics: metrics are disabled. Set metrics.enabled to true in blackbox.json."));
+                        } else {
+                            context.sendMessage(Message.raw(
+                                "No health metrics recorded yet for the last " + days + " day(s)."));
+                        }
+                        return;
+                    }
+                    context.sendMessage(Message.raw("Trend report (" + days + "d): " + out));
+                } catch (IOException e) {
+                    context.sendMessage(Message.raw("Failed to build trend report: " + e.getMessage()));
+                }
             }, executor());
         }
     }

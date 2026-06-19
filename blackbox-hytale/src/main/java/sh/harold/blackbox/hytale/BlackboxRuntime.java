@@ -1,25 +1,19 @@
 package sh.harold.blackbox.hytale;
 
 import com.hypixel.hytale.logger.sentry.SkipSentryException;
-import com.hypixel.hytale.server.core.event.events.ShutdownEvent;
-import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
-import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
-import com.hypixel.hytale.server.core.event.events.player.PlayerSetupConnectEvent;
-import com.hypixel.hytale.server.core.event.events.player.PlayerSetupDisconnectEvent;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.events.RemoveWorldEvent;
-import java.lang.management.GarbageCollectorMXBean;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryPoolMXBean;
-import java.lang.management.MemoryType;
-import java.lang.management.MemoryUsage;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,9 +21,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Stream;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,7 +33,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
-import jdk.jfr.consumer.RecordingStream;
 import sh.harold.blackbox.core.bundle.BundleBuilder;
 import sh.harold.blackbox.core.bundle.BundleExtrasRegistry;
 import sh.harold.blackbox.core.capture.CapturePipeline;
@@ -46,16 +40,14 @@ import sh.harold.blackbox.core.capture.IncidentNotifier;
 import sh.harold.blackbox.core.capture.PostIncidentWaiter;
 import sh.harold.blackbox.core.capture.RecordingDumper;
 import sh.harold.blackbox.core.config.BlackboxConfig;
-import sh.harold.blackbox.core.jfr.BlackboxConnectionEvent;
-import sh.harold.blackbox.core.jfr.BlackboxDiskEvent;
-import sh.harold.blackbox.core.jfr.BlackboxPluginEvent;
-import sh.harold.blackbox.core.health.HostCpuStats;
-import sh.harold.blackbox.core.jfr.BlackboxHostCpuEvent;
-import sh.harold.blackbox.core.jfr.BlackboxSystemTickEvent;
-import sh.harold.blackbox.core.jfr.BlackboxWorldTickEvent;
+import sh.harold.blackbox.core.env.TextRedactor;
+import sh.harold.blackbox.core.incident.IncidentMetadata;
+import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.jfr.JfrController;
-import sh.harold.blackbox.core.jfr.JfrRepository;
+import sh.harold.blackbox.core.metrics.HealthGauges;
 import sh.harold.blackbox.core.metrics.MetricsLog;
+import sh.harold.blackbox.core.metrics.PrometheusExporter;
+import sh.harold.blackbox.core.report.TrendReport;
 import sh.harold.blackbox.core.notify.discord.DiscordWebhookNotifier;
 import sh.harold.blackbox.core.notify.discord.HttpClientWebhookTransport;
 import sh.harold.blackbox.core.retention.FileDeleter;
@@ -76,6 +68,8 @@ import sh.harold.blackbox.core.trigger.player.PlayerDropDetector;
 import sh.harold.blackbox.core.trigger.tick.TickDegradedDetector;
 
 final class BlackboxRuntime implements AutoCloseable {
+    private static final DateTimeFormatter INCIDENT_TS =
+        DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss.SSSZ").withLocale(Locale.ROOT);
     private final BlackboxPlugin plugin;
     private final Clock clock;
     private final System.Logger logger;
@@ -84,19 +78,21 @@ final class BlackboxRuntime implements AutoCloseable {
     private final Path incidentDir;
     private final Path tempDir;
     private final Path rollingFile;
-    private final Path recoverDir;
-    private final Path sessionPointer;
-    private volatile Path currentSessionDir;
-    private final MetricsLog metricsLog;
-    private long lastGcMillis = -1;
-    private long lastGcWallMillis;
 
     private final ScheduledExecutorService scheduler;
     private final ExecutorService worker;
 
     private final JfrController jfr;
     private final HeartbeatRegistry heartbeatRegistry;
+    private final HytaleHeartbeatPump heartbeatPump;
     private final BundleExtrasRegistry extrasRegistry;
+    private final HytaleConnectionTracker connectionTracker;
+    private final JfrSessionRecovery sessionRecovery;
+    private final ProfileSessionController profileSessions;
+    private final HytaleNetSampler netSampler;
+    private final HealthGauges healthGauges = new HealthGauges();
+    private final HytaleTelemetrySampler telemetry;
+    private volatile PrometheusExporter prometheusExporter;
 
     private record Engine(
         BlackboxConfig config,
@@ -112,24 +108,22 @@ final class BlackboxRuntime implements AutoCloseable {
     ) {}
 
     private volatile Engine engine;
+    private volatile TextRedactor textRedactor;
+    private final PlayerNameMasker nameMasker = new PlayerNameMasker();
     private HytaleLogWatcher logWatcher;
 
     private final AtomicBoolean stallCheckRunning = new AtomicBoolean(false);
     private final AtomicBoolean snapshotRunning = new AtomicBoolean(false);
     private final AtomicBoolean tickSampleRunning = new AtomicBoolean(false);
     private final AtomicBoolean healthCheckRunning = new AtomicBoolean(false);
-    private final AtomicBoolean profileActive = new AtomicBoolean(false);
-    private volatile long profileEndsAtMs;
     private final HytaleWorldStatsProvider worldStats;
 
-    private final Map<String, double[]> netRatesByInterface = new ConcurrentHashMap<>();
-    private volatile RecordingStream netStream;
-    private final Map<UUID, Long> joinStartNanos = new ConcurrentHashMap<>();
-    private final Map<String, AtomicBoolean> heartbeatPending = new ConcurrentHashMap<>();
-    private int heartbeatSweepCounter;
     private final AtomicReference<Instant> lastIncidentAt = new AtomicReference<>();
     private final AtomicReference<String> lastIncidentId = new AtomicReference<>();
     private final AtomicBoolean capturePending = new AtomicBoolean(false);
+
+    private static final String FLOGGER_LOG_SITE_STACK_TRACE = "com.google.common.flogger.LogSiteStackTrace";
+    private final Map<String, Instant> recentLogErrors = new ConcurrentHashMap<>();
 
     static BlackboxRuntime start(BlackboxPlugin plugin) throws Exception {
         Objects.requireNonNull(plugin, "plugin");
@@ -148,7 +142,7 @@ final class BlackboxRuntime implements AutoCloseable {
         JfrController jfr = new JfrController(
             config.jfrMaxAge(), config.jfrMaxSizeBytes(),
             config.jfrRecordingName(), config.jfrDisabledEvents(),
-            config.jfrConfiguration()
+            config.jfrConfiguration(), config.jfrOldObjectSampling()
         );
         jfr.start();
 
@@ -157,21 +151,26 @@ final class BlackboxRuntime implements AutoCloseable {
         runtime.extrasRegistry.register(new HytaleBundleExtrasProvider(
             runtime.heartbeatRegistry,
             () -> runtime.engine.config().capturePolicy().logTailLines(),
-            dataDir.resolve("metrics")));
+            () -> runtime.engine.config().capturePolicy().includeServerLog(),
+            dataDir.resolve("metrics"),
+            runtime.nameMasker));
         runtime.syncNetSampler();
         runtime.recoverOrphanedRecordings();
         runtime.startSnapshotWriter();
         runtime.startScheduledWork();
         runtime.registerCommands();
         runtime.registerWorldFailureListener();
-        runtime.registerConnectionListeners();
+        runtime.connectionTracker.register();
         runtime.registerLogWatcher();
         BlackboxApi.registerDiagnostics("Environment", HytaleEnvironment::snapshot);
+        runtime.refreshBundleStats();
+        runtime.startMetricsExporter();
         runtime.logStartup();
         return runtime;
     }
 
     private Engine buildEngine(BlackboxConfig config) {
+        this.textRedactor = new TextRedactor(config.capturePolicy().redactPatterns());
         DetectorPolicy detectors = config.triggerPolicy().detectors();
         ModulePolicy modules = detectors.modules();
 
@@ -199,22 +198,29 @@ final class BlackboxRuntime implements AutoCloseable {
         };
         PostIncidentWaiter postIncidentWaiter = (event) -> {
             capturePending.set(true);
-            awaitHeartbeatRecovery(event, heartbeatRegistry, clock, config.postIncidentMaxWait(), logger);
+            HytaleHeartbeatPump.awaitRecovery(event, heartbeatRegistry, clock, config.postIncidentMaxWait(), logger);
         };
-        IncidentNotifier notifier = buildNotifier(clock, config, logger, worker);
+        IncidentNotifier configuredNotifier = buildNotifier(clock, config, logger, worker);
+        IncidentNotifier notifier = (report, zip) -> {
+            recordIncidentGauge(report);
+            configuredNotifier.onIncident(report, zip);
+        };
 
         CapturePipeline capturePipeline = new CapturePipeline(
             clock,
             triggerEngine,
             dumper,
-            new BundleBuilder(clock, logger),
+            new BundleBuilder(clock, logger, textRedactor, nameMasker::maskText),
             new RetentionManager(clock, logger, FileDeleter.defaultDeleter()),
             notifier,
             extrasRegistry,
             worldStats,
             () -> HytaleAssetPacks.appendTo(HytaleServerSettings.appendTo(HytaleModConfigs.appendTo(HytaleMixins.appendTo(HytalePlugins.appendTo(
-                HytaleEntities.appendTo(HytaleTickSystems.appendTo(HytaleServerLog.appendTo(
-                    BlackboxApi.collectDiagnostics(), config.capturePolicy().logTailLines())))))))),
+                HytaleEntities.appendTo(HytaleTickSystems.appendTo(HytaleHeartbeats.appendTo(HytaleServerLog.appendTo(
+                    BlackboxApi.collectDiagnostics(), config.capturePolicy().includeServerLog(),
+                    config.capturePolicy().logTailLines(), nameMasker,
+                    config.capturePolicy().sanitizeLog()), heartbeatRegistry))))),
+                config.capturePolicy().includeModConfigs(), BlackboxApi.registeredConfigPaths()), config.capturePolicy().includeServerConfig())),
             postIncidentWaiter,
             incidentDir,
             tempDir,
@@ -228,22 +234,22 @@ final class BlackboxRuntime implements AutoCloseable {
             tickDegradedDetector,
             capturePipeline,
             modules.deadlock()
-                ? new DeadlockDetector(clock, BlackboxRuntime::deadlockedThreadIds)
+                ? new DeadlockDetector(clock, JvmProbes::deadlockedThreadIds)
                 : null,
             modules.heapPressure() && detectors.heapPressurePct() > 0
-                ? new HeapPressureDetector(clock, BlackboxRuntime::tenuredAfterGcFraction,
+                ? new HeapPressureDetector(clock, JvmProbes::tenuredAfterGcFraction,
                     detectors.heapPressurePct() / 100.0, detectors.heapPressureSustain())
                 : null,
             modules.gcPressure() && detectors.gcPressurePct() > 0 && !detectors.gcPressureWindow().isZero()
-                ? new GcPressureDetector(clock, BlackboxRuntime::totalGcTimeMillis,
+                ? new GcPressureDetector(clock, JvmProbes::stwGcPauseMillis,
                     detectors.gcPressurePct() / 100.0, detectors.gcPressureWindow())
                 : null,
             modules.cpuSaturation() && detectors.cpuSaturationPct() > 0
-                ? new CpuSaturationDetector(clock, BlackboxRuntime::processCpuLoad,
+                ? new CpuSaturationDetector(clock, JvmProbes::processCpuLoad,
                     detectors.cpuSaturationPct() / 100.0, detectors.cpuSaturationSustain())
                 : null,
             modules.netSaturation() && (detectors.netInMbps() > 0 || detectors.netOutMbps() > 0)
-                ? new NetSaturationDetector(clock, this::latestNetRates,
+                ? new NetSaturationDetector(clock, netSampler::latestRates,
                     detectors.netInMbps(), detectors.netOutMbps(), detectors.netSustain())
                 : null,
             modules.playerDrop() && detectors.playerDropPct() > 0 && !detectors.playerDropWindow().isZero()
@@ -271,6 +277,62 @@ final class BlackboxRuntime implements AutoCloseable {
         );
     }
 
+    private void recordIncidentGauge(IncidentReport report) {
+        try {
+            IncidentMetadata meta = report.meta();
+            healthGauges.incrementIncident(meta.trigger(),
+                meta.severity().name().toLowerCase(Locale.ROOT), meta.createdAt().getEpochSecond());
+        } catch (Exception e) {
+            logger.log(System.Logger.Level.DEBUG, "Failed to record incident gauge.", e);
+        }
+        refreshBundleStats();
+    }
+
+    private void refreshBundleStats() {
+        try (var entries = Files.list(incidentDir)) {
+            long[] acc = {0L, 0L};
+            entries.filter(Files::isRegularFile)
+                .filter(p -> p.getFileName().toString().endsWith(".zip"))
+                .forEach(p -> {
+                    try {
+                        acc[0]++;
+                        acc[1] += Files.size(p);
+                    } catch (IOException ignored) {
+                    }
+                });
+            healthGauges.setBundles(acc[0], acc[1]);
+        } catch (Exception e) {
+            logger.log(System.Logger.Level.DEBUG, "Failed to refresh bundle stats.", e);
+        }
+    }
+
+    private void startMetricsExporter() {
+        BlackboxConfig cfg = engine.config();
+        if (!cfg.prometheusEnabled()) {
+            return;
+        }
+        try {
+            prometheusExporter = new PrometheusExporter(
+                healthGauges, cfg.prometheusBind(), cfg.prometheusPort(), "/metrics");
+            logger.log(System.Logger.Level.INFO, "Prometheus metrics on http://"
+                + cfg.prometheusBind() + ":" + prometheusExporter.port() + "/metrics");
+        } catch (IOException e) {
+            logger.log(System.Logger.Level.WARNING, "Failed to start Prometheus metrics endpoint.", e);
+        }
+    }
+
+    private void stopMetricsExporter() {
+        PrometheusExporter exporter = prometheusExporter;
+        if (exporter != null) {
+            try {
+                exporter.close();
+            } catch (Exception e) {
+                logger.log(System.Logger.Level.WARNING, "Failed to stop Prometheus metrics endpoint.", e);
+            }
+            prometheusExporter = null;
+        }
+    }
+
     private BlackboxRuntime(
         BlackboxPlugin plugin,
         Clock clock,
@@ -288,15 +350,23 @@ final class BlackboxRuntime implements AutoCloseable {
         this.incidentDir = dataDir.resolve("incidents");
         this.tempDir = dataDir.resolve("temp");
         this.rollingFile = dataDir.resolve("live").resolve("rolling.jfr");
-        this.recoverDir = dataDir.resolve("live").resolve("recover");
-        this.sessionPointer = dataDir.resolve("live").resolve("jfr-session");
-        this.metricsLog = new MetricsLog(dataDir.resolve("metrics"));
         this.scheduler = scheduler;
         this.worker = worker;
         this.jfr = jfr;
         this.heartbeatRegistry = new HeartbeatRegistry(clock);
+        this.heartbeatPump = new HytaleHeartbeatPump(logger, heartbeatRegistry);
         this.extrasRegistry = new BundleExtrasRegistry(logger);
-        this.worldStats = new HytaleWorldStatsProvider();
+        this.worldStats = new HytaleWorldStatsProvider(nameMasker);
+        this.connectionTracker = new HytaleConnectionTracker(plugin, logger, nameMasker);
+        this.sessionRecovery = new JfrSessionRecovery(clock, logger, rollingFile,
+            dataDir.resolve("live").resolve("recover"), dataDir.resolve("live").resolve("jfr-session"));
+        this.profileSessions = new ProfileSessionController(clock, logger, scheduler, worker, jfr, this::capture);
+        this.netSampler = new HytaleNetSampler(clock, logger);
+        this.telemetry = new HytaleTelemetrySampler(clock, logger, worldStats,
+            new MetricsLog(dataDir.resolve("metrics")), healthGauges,
+            () -> engine.config(), () -> engine.playerDropDetector(), this::capture);
+        Package pkg = BlackboxRuntime.class.getPackage();
+        healthGauges.setVersion(pkg == null ? null : pkg.getImplementationVersion());
     }
 
     void registerCommands() {
@@ -315,88 +385,6 @@ final class BlackboxRuntime implements AutoCloseable {
         } catch (Exception e) {
             logger.log(System.Logger.Level.WARNING,
                 "Failed to subscribe to RemoveWorldEvent; world-failure captures disabled.", e);
-        }
-    }
-
-    private void registerConnectionListeners() {
-        try {
-            plugin.getEventRegistry().registerGlobal(PlayerSetupConnectEvent.class,
-                e -> {
-                    markJoinStart(e.getUuid());
-                    commitConnectionEvent(e.getUsername(), "connect", null);
-                });
-            plugin.getEventRegistry().registerGlobal(PlayerSetupDisconnectEvent.class,
-                e -> {
-                    joinStartNanos.remove(e.getUuid());
-                    commitConnectionEvent(e.getUsername(), "setup disconnect",
-                        String.valueOf(e.getDisconnectReason()));
-                });
-            plugin.getEventRegistry().registerGlobal(PlayerConnectEvent.class,
-                e -> {
-                    var ref = e.getPlayerRef();
-                    String world = e.getWorld() == null ? null : e.getWorld().getName();
-                    String dur = joinDuration(ref == null ? null : ref.getUuid());
-                    String detail = world == null ? dur : (dur == null ? world : world + " · " + dur);
-                    commitConnectionEvent(ref == null ? null : ref.getUsername(), "join", detail);
-                });
-            plugin.getEventRegistry().registerGlobal(PlayerDisconnectEvent.class,
-                e -> commitConnectionEvent(e.getPlayerRef() == null ? null : e.getPlayerRef().getUsername(),
-                    "leave", disconnectReason(e)));
-            plugin.getEventRegistry().registerGlobal(ShutdownEvent.class,
-                e -> commitServerMarker("shutdown initiated"));
-        } catch (Throwable t) {
-            logger.log(System.Logger.Level.WARNING,
-                "Failed to subscribe to player connection events; connection timeline disabled.", t);
-        }
-    }
-
-    private void markJoinStart(UUID uuid) {
-        if (uuid == null) {
-            return;
-        }
-        if (joinStartNanos.size() > 512) {
-            joinStartNanos.clear();
-        }
-        joinStartNanos.put(uuid, System.nanoTime());
-    }
-
-    private String joinDuration(UUID uuid) {
-        Long start = uuid == null ? null : joinStartNanos.remove(uuid);
-        if (start == null) {
-            return null;
-        }
-        return String.format(Locale.ROOT, "joined in %.1fs", (System.nanoTime() - start) / 1e9);
-    }
-
-    private void commitServerMarker(String message) {
-        try {
-            BlackboxPluginEvent event = new BlackboxPluginEvent();
-            event.category = "Server";
-            event.message = message;
-            event.commit();
-        } catch (Throwable t) {
-            logger.log(System.Logger.Level.DEBUG, "Failed to commit server marker.", t);
-        }
-    }
-
-    private static String disconnectReason(PlayerDisconnectEvent event) {
-        try {
-            Object reason = event.getDisconnectReason();
-            return reason == null ? null : reason.toString();
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
-    private void commitConnectionEvent(String player, String phase, String detail) {
-        try {
-            BlackboxConnectionEvent event = new BlackboxConnectionEvent();
-            event.player = player == null || player.isBlank() ? "unknown" : player;
-            event.phase = phase;
-            event.detail = detail;
-            event.commit();
-        } catch (Throwable t) {
-            logger.log(System.Logger.Level.DEBUG, "Failed to commit connection event.", t);
         }
     }
 
@@ -463,29 +451,75 @@ final class BlackboxRuntime implements AutoCloseable {
             return;
         }
         Throwable thrown = record.getThrown();
+        if (thrown != null && FLOGGER_LOG_SITE_STACK_TRACE.equals(thrown.getClass().getName())) {
+            thrown = thrown.getCause();
+        }
         if (detectors.logErrorRequireThrowable() && thrown == null) {
             return;
         }
         if (detectors.logErrorSkipSentry() && SkipSentryException.hasSkipSentry(thrown)) {
             return;
         }
+        Map<String, String> attrs = logErrorAttrs(record, thrown);
+        if (isIgnoredLogError(detectors, attrs.get("error"))) {
+            return;
+        }
+        if (isDuplicateLogError(detectors, logErrorSignature(record, thrown))) {
+            return;
+        }
         TriggerEvent event = new TriggerEvent(
-            TriggerKind.LOG_ERROR, logErrorScope(record, thrown), clock.instant(), logErrorAttrs(record, thrown));
+            TriggerKind.LOG_ERROR, "server", clock.instant(), attrs);
         try {
             worker.execute(() -> capture(event));
         } catch (RejectedExecutionException e) {
         }
     }
 
-    private static String logErrorScope(LogRecord record, Throwable thrown) {
-        if (thrown != null) {
-            String simple = thrown.getClass().getSimpleName();
-            if (simple != null && !simple.isBlank()) {
-                return simple;
+    private static boolean isIgnoredLogError(DetectorPolicy detectors, String errorText) {
+        List<Pattern> ignore = detectors.logErrorIgnore();
+        if (ignore.isEmpty() || errorText == null || errorText.isEmpty()) {
+            return false;
+        }
+        for (Pattern pattern : ignore) {
+            if (pattern.matcher(errorText).find()) {
+                return true;
             }
         }
+        return false;
+    }
+
+    private boolean isDuplicateLogError(DetectorPolicy detectors, String signature) {
+        Duration window = detectors.logErrorDedupeWindow();
+        if (window == null || window.isZero()) {
+            return false;
+        }
+        Instant now = clock.instant();
+        Instant cutoff = now.minus(window);
+        recentLogErrors.values().removeIf(seen -> seen.isBefore(cutoff));
+        return recentLogErrors.putIfAbsent(signature, now) != null;
+    }
+
+    private static String logErrorSignature(LogRecord record, Throwable thrown) {
+        if (thrown != null) {
+            StringBuilder sig = new StringBuilder(thrown.getClass().getName());
+            String message = thrown.getMessage();
+            if (message != null && !message.isBlank()) {
+                sig.append(": ").append(message);
+            }
+            StackTraceElement[] frames = thrown.getStackTrace();
+            if (frames.length > 0) {
+                sig.append(" @ ").append(frames[0]);
+            }
+            return sig.toString();
+        }
         String loggerName = record.getLoggerName();
-        return loggerName == null || loggerName.isBlank() ? "log" : loggerName;
+        String message = record.getMessage();
+        String firstLine = message == null ? "" : message.lines()
+            .map(String::strip)
+            .filter(line -> !line.isEmpty())
+            .findFirst()
+            .orElse("");
+        return (loggerName == null || loggerName.isBlank() ? "log" : loggerName) + ": " + firstLine;
     }
 
     private static Map<String, String> logErrorAttrs(LogRecord record, Throwable thrown) {
@@ -515,6 +549,7 @@ final class BlackboxRuntime implements AutoCloseable {
     }
 
     Optional<String> capture(TriggerEvent event) {
+        event = maskAttrs(event);
         Optional<String> id;
         try {
             id = engine.capturePipeline().handle(event).map(incidentId -> incidentId.value());
@@ -528,6 +563,19 @@ final class BlackboxRuntime implements AutoCloseable {
             lastIncidentId.set(id.get());
         }
         return id;
+    }
+
+    private TriggerEvent maskAttrs(TriggerEvent event) {
+        if (event.attrs().isEmpty()) {
+            return event;
+        }
+        Map<String, String> masked = new HashMap<>();
+        event.attrs().forEach((key, value) -> masked.put(key, nameMasker.maskText(value)));
+        return new TriggerEvent(event.kind(), event.scope(), event.at(), masked);
+    }
+
+    String maskText(String text) {
+        return nameMasker.maskText(text);
     }
 
     Path incidentDir() {
@@ -593,6 +641,13 @@ final class BlackboxRuntime implements AutoCloseable {
         if (!previous.discordWebhook().equals(fresh.discordWebhook())) {
             changed.add("Discord");
         }
+        if (previous.prometheusEnabled() != fresh.prometheusEnabled()
+            || previous.prometheusPort() != fresh.prometheusPort()
+            || !previous.prometheusBind().equals(fresh.prometheusBind())) {
+            stopMetricsExporter();
+            startMetricsExporter();
+            changed.add("Metrics.Prometheus");
+        }
         if (!previous.postIncidentMaxWait().equals(fresh.postIncidentMaxWait())) {
             changed.add("Jfr.PostIncidentMaxWait");
         }
@@ -620,50 +675,67 @@ final class BlackboxRuntime implements AutoCloseable {
         return out.toString();
     }
 
-    String startProfileSession(int minutes) {
-        int clamped = Math.max(1, Math.min(30, minutes));
-        if (!profileActive.compareAndSet(false, true)) {
-            return "A profile session is already running (" + profileRemainingSeconds() + "s remaining).";
+    String startProfileSession(int minutes, boolean keepBuffer) {
+        return profileSessions.start(minutes, keepBuffer);
+    }
+
+    Path generateTrendReport(int days) throws IOException {
+        Instant now = clock.instant();
+        MetricsLog.Trend trend = new MetricsLog(dataDir.resolve("metrics")).read(now, days);
+        if (trend.isEmpty()) {
+            return null;
         }
-        try {
-            capture(new TriggerEvent(TriggerKind.MANUAL, "server", clock.instant(),
-                Map.of("reason", "profile lead-up")));
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Failed to capture the pre-profile lead-up.", e);
+        long fromMs = now.minus(Duration.ofDays(days)).toEpochMilli();
+        long[] incidents = incidentTimesWithin(fromMs, now.toEpochMilli());
+        Path out = dataDir.resolve("trend-report.html");
+        try (OutputStream os = Files.newOutputStream(out)) {
+            TrendReport.write(trend, days, now, incidents, os);
         }
-        try {
-            jfr.restart("profile");
-        } catch (Exception e) {
-            profileActive.set(false);
-            return "Failed to switch the recording to the profile preset: " + e;
+        return out;
+    }
+
+    private long[] incidentTimesWithin(long fromMs, long toMs) {
+        if (!Files.isDirectory(incidentDir)) {
+            return new long[0];
         }
-        profileEndsAtMs = clock.millis() + clamped * 60_000L;
-        scheduler.schedule(() -> worker.execute(this::finishProfileSession), clamped, TimeUnit.MINUTES);
-        return null;
+        List<Long> times = new ArrayList<>();
+        try (Stream<Path> entries = Files.list(incidentDir)) {
+            entries.filter(p -> p.getFileName().toString().endsWith(".zip")).forEach(p -> {
+                String base = p.getFileName().toString();
+                base = base.substring(0, base.length() - ".zip".length());
+                if (base.startsWith("incident-")) {
+                    base = base.substring("incident-".length());
+                }
+                int lastDash = base.lastIndexOf('-');
+                if (lastDash <= 0) {
+                    return;
+                }
+                try {
+                    long ms = OffsetDateTime.parse(base.substring(0, lastDash), INCIDENT_TS)
+                        .toInstant().toEpochMilli();
+                    if (ms >= fromMs && ms <= toMs) {
+                        times.add(ms);
+                    }
+                } catch (RuntimeException ignored) {
+                }
+            });
+        } catch (IOException e) {
+            return new long[0];
+        }
+        times.sort(null);
+        long[] out = new long[times.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = times.get(i);
+        }
+        return out;
     }
 
     boolean profileActive() {
-        return profileActive.get();
+        return profileSessions.active();
     }
 
     long profileRemainingSeconds() {
-        return Math.max(0, (profileEndsAtMs - clock.millis()) / 1000);
-    }
-
-    private void finishProfileSession() {
-        try {
-            capture(new TriggerEvent(TriggerKind.MANUAL, "server", clock.instant(),
-                Map.of("reason", "profile session")));
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Profile-session capture failed.", e);
-        } finally {
-            try {
-                jfr.restart(null);
-            } catch (Exception e) {
-                logger.log(System.Logger.Level.WARNING, "Failed to revert the recording preset.", e);
-            }
-            profileActive.set(false);
-        }
+        return profileSessions.remainingSeconds();
     }
 
     BundleExtrasRegistry extrasRegistry() {
@@ -692,187 +764,10 @@ final class BlackboxRuntime implements AutoCloseable {
     }
 
     private void recoverOrphanedRecordings() {
-        String previousSession = readSessionPointer();
-        locateCurrentSession();
-        persistCurrentSession();
-        boolean snapshots = !engine.config().jfrSnapshotInterval().isZero();
-        worker.execute(() -> {
-            try {
-                Files.createDirectories(recoverDir);
-            } catch (Exception e) {
-                logger.log(System.Logger.Level.WARNING, "Failed to create the recovery directory.", e);
-            }
-            boolean harvested = harvestPreviousRepository(previousSession);
-            if (!harvested && snapshots) {
-                try {
-                    if (Files.exists(rollingFile)) {
-                        Path staged = recoverDir.resolve("rolling-" + clock.millis() + ".jfr");
-                        Files.move(rollingFile, staged, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (Exception e) {
-                    logger.log(System.Logger.Level.WARNING, "Failed to stage an orphaned recording for recovery.", e);
-                }
-            }
-            try {
-                engine.capturePipeline().recoverOrphans(recoverDir);
-            } catch (Exception e) {
-                logger.log(System.Logger.Level.WARNING, "Recovery scan failed.", e);
-            }
-        });
-    }
-
-    private String readSessionPointer() {
-        try {
-            if (Files.exists(sessionPointer)) {
-                return Files.readString(sessionPointer).trim();
-            }
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Failed to read the JFR repository pointer.", e);
-        }
-        return "";
-    }
-
-    private void locateCurrentSession() {
-        try {
-            Path base = JfrRepository.repositoryBase(
-                ManagementFactory.getRuntimeMXBean().getInputArguments(),
-                Path.of(System.getProperty("java.io.tmpdir", ".")));
-            currentSessionDir = JfrRepository.sessionDirForPid(base, ProcessHandle.current().pid()).orElse(null);
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Failed to locate the active JFR repository.", e);
-        }
-    }
-
-    private void persistCurrentSession() {
-        if (currentSessionDir == null) {
-            return;
-        }
-        try {
-            Files.createDirectories(sessionPointer.getParent());
-            Files.writeString(sessionPointer, currentSessionDir.toString());
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Failed to record the JFR repository location.", e);
-        }
-    }
-
-    private boolean harvestPreviousRepository(String previousSession) {
-        if (previousSession == null || previousSession.isEmpty()) {
-            return false;
-        }
-        Path previousDir = Path.of(previousSession);
-        if (previousDir.equals(currentSessionDir)) {
-            return false;
-        }
-        List<Path> chunks;
-        try {
-            chunks = JfrRepository.chunkFiles(previousDir);
-        } catch (Exception e) {
-            return false;
-        }
-        if (chunks.isEmpty()) {
-            return false;
-        }
-        Path merged = recoverDir.resolve("harvested-" + clock.millis() + ".jfr");
-        boolean recovered = false;
-        try {
-            if (JfrRepository.merge(chunks, merged)) {
-                recovered = engine.capturePipeline()
-                    .recoverFromRecording(merged, lastModifiedOrNow(previousDir))
-                    .isPresent();
-                if (recovered) {
-                    logger.log(System.Logger.Level.INFO,
-                        "Recovered an incident bundle from " + chunks.size()
-                        + " JFR repository chunk(s) of a crashed run.");
-                }
-            }
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Failed to harvest the previous JFR repository.", e);
-        } finally {
-            try {
-                Files.deleteIfExists(merged);
-            } catch (Exception ignored) {
-            }
-            deleteRecursively(previousDir);
-        }
-        return recovered;
-    }
-
-    private Instant lastModifiedOrNow(Path path) {
-        try {
-            return Files.getLastModifiedTime(path).toInstant();
-        } catch (Exception e) {
-            return clock.instant();
-        }
-    }
-
-    private void recordHealthMetrics(double tickAvgMs, double tps, int players) {
-        BlackboxConfig cfg = engine.config();
-        if (!cfg.metricsEnabled()) {
-            return;
-        }
-        try {
-            Instant now = clock.instant();
-            String row = MetricsLog.formatRow(now, tickAvgMs, tps, players,
-                ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed(),
-                readRssBytes(), gcFractionPercent());
-            metricsLog.append(now, row, cfg.metricsRetentionDays());
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Failed to append health metrics.", e);
-        }
-    }
-
-    private double gcFractionPercent() {
-        long gcNow = 0;
-        for (GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
-            long time = bean.getCollectionTime();
-            if (time > 0) {
-                gcNow += time;
-            }
-        }
-        long wallNow = clock.millis();
-        double percent = -1;
-        if (lastGcMillis >= 0) {
-            long wallDelta = wallNow - lastGcWallMillis;
-            if (wallDelta > 0) {
-                percent = (gcNow - lastGcMillis) * 100.0 / wallDelta;
-            }
-        }
-        lastGcMillis = gcNow;
-        lastGcWallMillis = wallNow;
-        return percent;
-    }
-
-    private long readRssBytes() {
-        try {
-            Path statm = Path.of("/proc/self/statm");
-            if (!Files.isReadable(statm)) {
-                return -1;
-            }
-            String[] fields = Files.readString(statm).trim().split("\\s+");
-            if (fields.length < 2) {
-                return -1;
-            }
-            return Long.parseLong(fields[1]) * 4096L;
-        } catch (Exception e) {
-            return -1;
-        }
-    }
-
-    private void deleteRecursively(Path dir) {
-        if (dir == null || !Files.exists(dir)) {
-            return;
-        }
-        try (java.util.stream.Stream<Path> entries = Files.walk(dir)) {
-            entries.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (Exception ignored) {
-                }
-            });
-        } catch (java.nio.file.NoSuchFileException e) {
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Failed to clean up harvested repository " + dir + ".", e);
-        }
+        sessionRecovery.recoverOrphanedRecordings(
+            !engine.config().jfrSnapshotInterval().isZero(),
+            () -> engine.capturePipeline(),
+            worker);
     }
 
     private void startSnapshotWriter() {
@@ -919,7 +814,7 @@ final class BlackboxRuntime implements AutoCloseable {
 
         universe.getUniverseReady().thenRun(() -> {
             scheduler.scheduleAtFixedRate(
-                this::tickHeartbeats,
+                heartbeatPump::tick,
                 0L,
                 50L,
                 TimeUnit.MILLISECONDS
@@ -982,129 +877,8 @@ final class BlackboxRuntime implements AutoCloseable {
         }
     }
 
-    private synchronized void syncNetSampler() {
-        boolean armed = engine.netSaturationDetector() != null;
-        if (!armed && netStream != null) {
-            try {
-                netStream.close();
-            } catch (Exception e) {
-                logger.log(System.Logger.Level.WARNING, "Network sampler shutdown failed.", e);
-            }
-            netStream = null;
-            return;
-        }
-        if (!armed || netStream != null) {
-            return;
-        }
-        try {
-            RecordingStream stream = new RecordingStream();
-            stream.enable("jdk.NetworkUtilization").withPeriod(Duration.ofSeconds(5));
-            stream.onEvent("jdk.NetworkUtilization", event -> {
-                try {
-                    String iface = event.getString("networkInterface");
-                    if (iface == null || iface.isBlank()) {
-                        return;
-                    }
-                    netRatesByInterface.put(iface, new double[] {
-                        event.getLong("readRate") / 1e6,
-                        event.getLong("writeRate") / 1e6,
-                        clock.millis()
-                    });
-                } catch (Exception ignored) {
-                }
-            });
-            stream.startAsync();
-            this.netStream = stream;
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING,
-                "Failed to start the network sampler; net-saturation captures disabled.", e);
-        }
-    }
-
-    private NetSaturationDetector.Rates latestNetRates() {
-        long cutoff = clock.millis() - 15_000L;
-        double in = -1;
-        double out = -1;
-        for (double[] rates : netRatesByInterface.values()) {
-            if (rates[2] < cutoff) {
-                continue;
-            }
-            in = Math.max(in, rates[0]);
-            out = Math.max(out, rates[1]);
-        }
-        return in < 0 ? null : new NetSaturationDetector.Rates(in, out);
-    }
-
-    private static long[] deadlockedThreadIds() {
-        try {
-            return ManagementFactory.getThreadMXBean().findDeadlockedThreads();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static double processCpuLoad() {
-        try {
-            java.lang.management.OperatingSystemMXBean bean = ManagementFactory.getOperatingSystemMXBean();
-            if (bean instanceof com.sun.management.OperatingSystemMXBean sun) {
-                return sun.getProcessCpuLoad();
-            }
-        } catch (Exception ignored) {
-        }
-        return -1;
-    }
-
-    private static long totalGcTimeMillis() {
-        try {
-            long total = 0;
-            boolean any = false;
-            for (GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
-                long time = gc.getCollectionTime();
-                if (time >= 0) {
-                    total += time;
-                    any = true;
-                }
-            }
-            return any ? total : -1;
-        } catch (Exception e) {
-            return -1;
-        }
-    }
-
-    private static double tenuredAfterGcFraction() {
-        try {
-            MemoryPoolMXBean chosen = null;
-            for (MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
-                if (pool.getType() != MemoryType.HEAP) {
-                    continue;
-                }
-                String name = pool.getName().toLowerCase(Locale.ROOT);
-                if (name.contains("old") || name.contains("tenured")) {
-                    chosen = pool;
-                    break;
-                }
-                if (chosen == null) {
-                    chosen = pool;
-                }
-            }
-            if (chosen == null) {
-                return Double.NaN;
-            }
-            MemoryUsage afterGc = chosen.getCollectionUsage();
-            if (afterGc == null || (afterGc.getUsed() == 0 && afterGc.getCommitted() == 0)) {
-                return Double.NaN;
-            }
-            long max = afterGc.getMax();
-            if (max <= 0 && chosen.getUsage() != null) {
-                max = chosen.getUsage().getMax();
-            }
-            if (max <= 0) {
-                return Double.NaN;
-            }
-            return afterGc.getUsed() / (double) max;
-        } catch (Exception e) {
-            return Double.NaN;
-        }
+    private void syncNetSampler() {
+        netSampler.sync(engine.netSaturationDetector() != null);
     }
 
     private void scheduleTickSample() {
@@ -1113,173 +887,13 @@ final class BlackboxRuntime implements AutoCloseable {
         }
         worker.execute(() -> {
             try {
-                sampleWorldTicks();
+                telemetry.sampleWorldTicks();
             } catch (Exception e) {
                 logger.log(System.Logger.Level.WARNING, "World tick sampling failed.", e);
             } finally {
                 tickSampleRunning.set(false);
             }
         });
-    }
-
-    private void sampleWorldTicks() {
-        int totalPlayers = 0;
-        boolean playersKnown = false;
-        long totalChunks = 0;
-        boolean chunksKnown = false;
-        double worstTps = -1;
-        double worstMspt = -1;
-        for (sh.harold.blackbox.core.health.HealthSnapshot.World world : worldStats.worlds().worlds()) {
-            if (world.players() >= 0) {
-                totalPlayers += world.players();
-                playersKnown = true;
-            }
-            if (world.chunks() >= 0) {
-                totalChunks += world.chunks();
-                chunksKnown = true;
-            }
-            if (world.tps() < 0) {
-                continue;
-            }
-            worstTps = worstTps < 0 ? world.tps() : Math.min(worstTps, world.tps());
-            if (world.mspt() >= 0) {
-                worstMspt = Math.max(worstMspt, world.mspt());
-            }
-            BlackboxWorldTickEvent event = new BlackboxWorldTickEvent();
-            event.world = world.name();
-            event.tps = world.tps();
-            event.mspt = world.mspt();
-            event.players = world.players();
-            event.entities = world.entities();
-            event.avgPingMs = world.avgPingMs();
-            event.commit();
-        }
-        if (chunksKnown) {
-            BlackboxApi.recordGauge("Chunks loaded", totalChunks);
-        }
-        recordHealthMetrics(worstMspt, worstTps, playersKnown ? totalPlayers : -1);
-        sampleDisk();
-        sampleHostCpu();
-        PlayerDropDetector playerDrop = engine.playerDropDetector();
-        if (playerDrop != null && playersKnown) {
-            for (TriggerEvent event : playerDrop.sample(totalPlayers)) {
-                capture(event);
-            }
-        }
-        try {
-            for (HytaleTickSystems.SystemSample sample : HytaleTickSystems.topSystems(SYSTEM_TICK_PER_WORLD_LIMIT)) {
-                BlackboxSystemTickEvent event = new BlackboxSystemTickEvent();
-                event.world = sample.world();
-                event.system = sample.system();
-                event.avgMs = sample.avgMs();
-                event.commit();
-            }
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "System tick sampling failed.", e);
-        }
-    }
-
-    private static final int SYSTEM_TICK_PER_WORLD_LIMIT = 4;
-
-    private void sampleHostCpu() {
-        try {
-            long[] throttle = HostCpuStats.cgroupThrottle();
-            long[] proc = HostCpuStats.procCpu();
-            if (throttle == null && proc == null) {
-                return;
-            }
-            BlackboxHostCpuEvent event = new BlackboxHostCpuEvent();
-            event.throttledPeriods = throttle == null ? -1 : throttle[0];
-            event.throttledMicros = throttle == null ? -1 : throttle[1];
-            event.cpuUsageUsec = throttle == null ? -1 : throttle[2];
-            event.cpuTotalJiffies = proc == null ? -1 : proc[0];
-            event.cpuStealJiffies = proc == null ? -1 : proc[1];
-            event.cpuIowaitJiffies = proc == null ? -1 : proc[2];
-            event.commit();
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.DEBUG, "Host CPU sampling failed.", e);
-        }
-    }
-
-    private void sampleDisk() {
-        try {
-            java.nio.file.FileStore store = Files.getFileStore(java.nio.file.Path.of("."));
-            BlackboxDiskEvent event = new BlackboxDiskEvent();
-            event.freeBytes = store.getUsableSpace();
-            event.totalBytes = store.getTotalSpace();
-            long[] io = processIoBytes();
-            event.readBytes = io[0];
-            event.writeBytes = io[1];
-            event.commit();
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.DEBUG, "Disk sampling failed.", e);
-        }
-    }
-
-    private static long[] processIoBytes() {
-        long[] io = {-1L, -1L};
-        try {
-            java.nio.file.Path procIo = java.nio.file.Path.of("/proc/self/io");
-            if (!Files.isReadable(procIo)) {
-                return io;
-            }
-            for (String line : Files.readAllLines(procIo)) {
-                if (line.startsWith("read_bytes:")) {
-                    io[0] = Long.parseLong(line.substring("read_bytes:".length()).trim());
-                } else if (line.startsWith("write_bytes:")) {
-                    io[1] = Long.parseLong(line.substring("write_bytes:".length()).trim());
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        return io;
-    }
-
-    private void tickHeartbeats() {
-        try {
-            Universe universe = Universe.get();
-            Map<String, World> worlds = universe.getWorlds();
-            for (Map.Entry<String, World> entry : worlds.entrySet()) {
-                String scope = entry.getKey();
-                if (scope == null || scope.isBlank()) {
-                    continue;
-                }
-                World world = entry.getValue();
-                if (world == null) {
-                    continue;
-                }
-
-                AtomicBoolean pending = heartbeatPending.computeIfAbsent(scope, ignored -> new AtomicBoolean(false));
-                if (!pending.compareAndSet(false, true)) {
-                    continue;
-                }
-
-                try {
-                    world.execute(() -> {
-                        try {
-                            heartbeatRegistry.beat(scope);
-                        } catch (Exception e) {
-                            logger.log(System.Logger.Level.WARNING, "Failed to beat heartbeat for " + scope, e);
-                        } finally {
-                            pending.set(false);
-                        }
-                    });
-                } catch (Exception e) {
-                    pending.set(false);
-                    logger.log(System.Logger.Level.WARNING, "Failed to post heartbeat for " + scope, e);
-                }
-            }
-
-            heartbeatRegistry.retain(worlds.keySet());
-
-            heartbeatSweepCounter++;
-            if (heartbeatSweepCounter >= 100) {
-                heartbeatSweepCounter = 0;
-                heartbeatPending.keySet().removeIf(scope -> !worlds.containsKey(scope));
-            }
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Heartbeat tick failed.", e);
-        }
     }
 
     private void scheduleStallCheck() {
@@ -1333,46 +947,9 @@ final class BlackboxRuntime implements AutoCloseable {
         return out;
     }
 
-    private static void awaitHeartbeatRecovery(
-        TriggerEvent event,
-        HeartbeatRegistry registry,
-        Clock clock,
-        Duration maxWait,
-        System.Logger logger
-    ) {
-        if (maxWait == null || maxWait.isZero() || maxWait.isNegative()) {
-            return;
-        }
-        if (event.kind() != TriggerKind.HEARTBEAT_STALL) {
-            return;
-        }
-        String scope = event.scope();
-        if (scope == null || scope.isBlank()) {
-            return;
-        }
-        Instant triggerAt = event.at();
-        Instant deadline = clock.instant().plus(maxWait);
-        while (clock.instant().isBefore(deadline)) {
-            Instant last = registry.lastBeat(scope);
-            if (last != null && last.isAfter(triggerAt)) {
-                logger.log(System.Logger.Level.INFO,
-                    "Heartbeat for '" + scope + "' resumed; dumping recording with post-incident recovery.");
-                return;
-            }
-            try {
-                Thread.sleep(250L);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-        }
-        logger.log(System.Logger.Level.INFO,
-            "Heartbeat for '" + scope + "' did not resume within " + maxWait.toSeconds()
-            + "s; dumping the recording now.");
-    }
-
     @Override
     public void close() {
+        stopMetricsExporter();
         if (logWatcher != null) {
             try {
                 logWatcher.unregister();
@@ -1380,13 +957,7 @@ final class BlackboxRuntime implements AutoCloseable {
                 logger.log(System.Logger.Level.WARNING, "Log watcher shutdown failed.", e);
             }
         }
-        try {
-            if (netStream != null) {
-                netStream.close();
-            }
-        } catch (Exception e) {
-            logger.log(System.Logger.Level.WARNING, "Network sampler shutdown failed.", e);
-        }
+        netSampler.close();
         try {
             scheduler.shutdownNow();
             worker.shutdownNow();

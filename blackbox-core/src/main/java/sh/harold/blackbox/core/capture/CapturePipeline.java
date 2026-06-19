@@ -22,6 +22,8 @@ import sh.harold.blackbox.core.health.HealthCollector;
 import sh.harold.blackbox.core.health.HealthSnapshot;
 import sh.harold.blackbox.core.health.JfrHotThreads;
 import sh.harold.blackbox.core.health.JfrSnapshot;
+import sh.harold.blackbox.core.health.JfrThreadDump;
+import sh.harold.blackbox.core.health.StalledThread;
 import sh.harold.blackbox.core.health.WorldStatsProvider;
 import sh.harold.blackbox.core.incident.DiagnosticSection;
 import sh.harold.blackbox.core.incident.IncidentId;
@@ -30,6 +32,7 @@ import sh.harold.blackbox.core.incident.IncidentMetadata;
 import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.incident.IncidentSummary;
 import sh.harold.blackbox.core.incident.Severity;
+import sh.harold.blackbox.core.jfr.JfrRepository;
 import sh.harold.blackbox.core.retention.RetentionManager;
 import sh.harold.blackbox.core.trigger.TriggerDecision;
 import sh.harold.blackbox.core.trigger.TriggerEngine;
@@ -41,7 +44,6 @@ import sh.harold.blackbox.core.trigger.TriggerResult;
  */
 public final class CapturePipeline {
     private static final String FAILED_DIR_NAME = "failed";
-    private static final int FAILED_RECORDING_CAP = 5;
 
     private final Clock clock;
     private final TriggerEngine triggerEngine;
@@ -175,7 +177,9 @@ public final class CapturePipeline {
             Files.createDirectories(incidentDir);
 
             Path tempRecording = tempDir.resolve(id.value() + ".jfr");
-            postIncidentWaiter.awaitResolution(event);
+            if (result.severity() != Severity.CRITICAL) {
+                postIncidentWaiter.awaitResolution(event);
+            }
             Path dumpedRecording = dumper.dump(tempRecording);
 
             if (wantReport) {
@@ -185,6 +189,7 @@ public final class CapturePipeline {
                 ? withModContribution(safeDiagnostics(), dumpedRecording)
                 : List.of();
             if (wantReport) {
+                diagnostics = StalledThread.prependTo(diagnostics, event, policy.frameworkPrefixes());
                 diagnostics = MemoryPools.appendTo(diagnostics);
             }
             if (wantReport && policy.heapHistogram()) {
@@ -241,11 +246,28 @@ public final class CapturePipeline {
             return Optional.empty();
         }
         try {
+            try {
+                JfrRepository.finalizeOrphan(recording);
+            } catch (Exception e) {
+                logger.log(System.Logger.Level.WARNING,
+                    "Failed to finalize recovered recording " + recording + "; it may be unreadable.", e);
+            }
             IncidentId id = IncidentIds.next(clock);
             Instant when = occurredAt != null ? occurredAt : clock.instant();
             boolean wantReport = policy.artifacts().contains(BundleArtifacts.REPORT);
             HealthSnapshot snapshot = wantReport ? JfrSnapshot.parse(recording, 1000) : null;
-            List<DiagnosticSection> diagnostics = wantReport ? withModContribution(List.of(), recording) : List.of();
+            List<DiagnosticSection> diagnostics = wantReport
+                ? withModContribution(safeDiagnostics(), recording) : List.of();
+            String threadDump = wantReport ? JfrThreadDump.lastDump(recording) : null;
+            if (wantReport && threadDump != null) {
+                DiagnosticSection stuck = JfrThreadDump.stuckSection(threadDump, policy.frameworkPrefixes());
+                if (stuck != null) {
+                    List<DiagnosticSection> withStuck = new ArrayList<>(diagnostics.size() + 1);
+                    withStuck.add(stuck);
+                    withStuck.addAll(diagnostics);
+                    diagnostics = withStuck;
+                }
+            }
             if (wantReport && redactor.hasPatterns()) {
                 diagnostics = redactDiagnostics(diagnostics);
             }
@@ -260,7 +282,12 @@ public final class CapturePipeline {
                 meta, summary, Map.of("recovered", "true"), snapshot, diagnostics);
             Files.createDirectories(incidentDir);
             Path outputZip = incidentDir.resolve("incident-" + id.value() + ".zip");
-            List<BundleAttachment> extras = extrasProvider.historicalExtras();
+            List<BundleAttachment> extras = new ArrayList<>(extrasProvider.historicalExtras());
+            extras.addAll(extrasProvider.configExtras());
+            if (threadDump != null) {
+                extras.add(new BundleAttachment("extras/threads.txt",
+                    threadDump.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            }
             if (redactor.hasPatterns()) {
                 extras = redactExtras(extras);
             }
@@ -342,7 +369,7 @@ public final class CapturePipeline {
                 .filter(p -> p.getFileName().toString().endsWith(".jfr"))
                 .sorted(Comparator.comparing(this::lastModified).reversed())
                 .toList();
-            for (int i = FAILED_RECORDING_CAP; i < files.size(); i++) {
+            for (int i = policy.retention().failedRecordingMaxCount(); i < files.size(); i++) {
                 Files.deleteIfExists(files.get(i));
             }
         } catch (Exception e) {

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -250,6 +251,44 @@ class CapturePipelineTest {
         assertTrue(recovered.isEmpty());
         assertFalse(Files.exists(recording));
         assertTrue(Files.exists(recoverDir.resolve("failed").resolve("rolling-1.jfr")));
+    }
+
+    @Test
+    void failedRecordingCapIsConfigurable(@TempDir Path tempDir) throws Exception {
+        Path incidentDir = tempDir.resolve("incidents");
+        Files.writeString(incidentDir, "block directory creation");
+        Path recoverDir = tempDir.resolve("recover");
+        Path failedDir = recoverDir.resolve("failed");
+        Files.createDirectories(failedDir);
+        for (int i = 0; i < 3; i++) {
+            Path old = failedDir.resolve("old-" + i + ".jfr");
+            Files.write(old, new byte[] {(byte) i});
+            Files.setLastModifiedTime(old, FileTime.from(Instant.parse("2026-01-1" + i + "T00:00:00Z")));
+        }
+        Path recording = recoverDir.resolve("rolling-1.jfr");
+        Files.write(recording, new byte[] {1, 2, 3});
+        Files.setLastModifiedTime(recording, FileTime.from(Instant.parse("2026-01-20T00:00:00Z")));
+        Clock clock = Clock.fixed(Instant.parse("2026-01-21T00:00:00Z"), ZoneOffset.UTC);
+
+        CapturePipeline pipeline = new CapturePipeline(
+            clock,
+            new TriggerEngine(clock, new TriggerPolicy(Duration.ofSeconds(30), Duration.ZERO, 1000, 5000, 100, 250)),
+            new FakeRecordingDumper(new byte[] {1}),
+            new BundleBuilder(clock),
+            new RetentionManager(clock, System.getLogger("retention-test"), FileDeleter.defaultDeleter()),
+            IncidentNotifier.noop(),
+            incidentDir,
+            tempDir.resolve("temp"),
+            new CapturePolicy(new RetentionPolicy(0, 0L, null, 2)),
+            System.getLogger("recovery-test")
+        );
+
+        pipeline.recoverOrphans(recoverDir);
+
+        try (Stream<Path> remaining = Files.list(failedDir)) {
+            List<String> names = remaining.map(p -> p.getFileName().toString()).sorted().toList();
+            assertEquals(List.of("old-2.jfr", "rolling-1.jfr"), names);
+        }
     }
 
     private static int countZips(Path incidentDir) throws Exception {

@@ -7,9 +7,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import sh.harold.blackbox.core.incident.DiagnosticSection;
@@ -22,8 +24,9 @@ final class HytaleModConfigs {
     private HytaleModConfigs() {
     }
 
-    static List<DiagnosticSection> appendTo(List<DiagnosticSection> base) {
-        List<DiagnosticSection> found = sections();
+    static List<DiagnosticSection> appendTo(List<DiagnosticSection> base, boolean includeModConfigs,
+                                            List<Path> registered) {
+        List<DiagnosticSection> found = sections(includeModConfigs, registered);
         if (found.isEmpty()) {
             return base;
         }
@@ -32,11 +35,32 @@ final class HytaleModConfigs {
         return out;
     }
 
-    private static List<DiagnosticSection> sections() {
-        if (!Files.isDirectory(MODS_DIR)) {
-            return List.of();
-        }
+    private static List<DiagnosticSection> sections(boolean includeModConfigs, List<Path> registered) {
         List<DiagnosticSection> out = new ArrayList<>();
+        Set<Path> seen = new HashSet<>();
+        for (Path file : registered) {
+            if (out.size() >= MAX_FILES) {
+                break;
+            }
+            Path key = normalize(file);
+            if (key == null || !seen.add(key) || !Files.isRegularFile(file)) {
+                continue;
+            }
+            String content = read(file);
+            if (content != null) {
+                out.add(new DiagnosticSection(title(file), Map.of(), content));
+            }
+        }
+        if (includeModConfigs) {
+            scrape(out, seen);
+        }
+        return out;
+    }
+
+    private static void scrape(List<DiagnosticSection> out, Set<Path> seen) {
+        if (!Files.isDirectory(MODS_DIR)) {
+            return;
+        }
         try (Stream<Path> modDirs = Files.list(MODS_DIR)) {
             List<Path> dirs = modDirs
                 .filter(Files::isDirectory)
@@ -51,7 +75,7 @@ final class HytaleModConfigs {
                     files.filter(p -> isConfigFile(p.getFileName().toString(), modName))
                         .sorted(Comparator.comparing(p -> p.getFileName().toString(), String.CASE_INSENSITIVE_ORDER))
                         .forEach(p -> {
-                            if (out.size() >= MAX_FILES) {
+                            if (out.size() >= MAX_FILES || !seen.add(normalize(p))) {
                                 return;
                             }
                             String content = read(p);
@@ -65,7 +89,26 @@ final class HytaleModConfigs {
             }
         } catch (IOException ignored) {
         }
-        return out;
+    }
+
+    private static Path normalize(Path file) {
+        try {
+            return file.toAbsolutePath().normalize();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String title(Path file) {
+        try {
+            Path cwd = Paths.get("").toAbsolutePath();
+            Path abs = file.toAbsolutePath().normalize();
+            if (abs.startsWith(cwd)) {
+                return cwd.relativize(abs).toString().replace('\\', '/');
+            }
+        } catch (Exception ignored) {
+        }
+        return file.getFileName().toString();
     }
 
     private static boolean isConfigFile(String name, String modName) {

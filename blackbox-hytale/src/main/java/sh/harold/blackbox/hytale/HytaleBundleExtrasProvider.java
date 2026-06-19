@@ -34,27 +34,35 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
 
     private final HeartbeatRegistry heartbeatRegistry;
     private final java.util.function.IntSupplier logTailLines;
+    private final java.util.function.BooleanSupplier includeServerLog;
     private final Path metricsDir;
+    private final PlayerNameMasker nameMasker;
 
     HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry, int logTailLines, Path metricsDir) {
-        this(heartbeatRegistry, () -> logTailLines, metricsDir);
+        this(heartbeatRegistry, () -> logTailLines, () -> true, metricsDir, new PlayerNameMasker());
     }
 
     HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry,
-                               java.util.function.IntSupplier logTailLines, Path metricsDir) {
+                               java.util.function.IntSupplier logTailLines,
+                               java.util.function.BooleanSupplier includeServerLog, Path metricsDir) {
+        this(heartbeatRegistry, logTailLines, includeServerLog, metricsDir, new PlayerNameMasker());
+    }
+
+    HytaleBundleExtrasProvider(HeartbeatRegistry heartbeatRegistry,
+                               java.util.function.IntSupplier logTailLines,
+                               java.util.function.BooleanSupplier includeServerLog, Path metricsDir,
+                               PlayerNameMasker nameMasker) {
         this.heartbeatRegistry = heartbeatRegistry;
         this.logTailLines = logTailLines;
+        this.includeServerLog = includeServerLog;
         this.metricsDir = metricsDir;
+        this.nameMasker = nameMasker;
     }
 
     @Override
     public List<BundleAttachment> extras(IncidentReport report, TriggerEvent triggerEvent) {
-        List<BundleAttachment> extras = new ArrayList<>();
+        List<BundleAttachment> extras = new ArrayList<>(configExtras());
 
-        extras.add(new BundleAttachment("extras/server.txt",
-            buildServerText().getBytes(StandardCharsets.UTF_8)));
-        extras.add(new BundleAttachment("extras/plugins.txt",
-            buildPluginsText().getBytes(StandardCharsets.UTF_8)));
         extras.add(new BundleAttachment("extras/worlds.txt",
             buildWorldsText().getBytes(StandardCharsets.UTF_8)));
         extras.add(new BundleAttachment("extras/heartbeats.txt",
@@ -62,8 +70,8 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
         extras.add(new BundleAttachment("extras/threads.txt",
             ThreadDumper.dump().getBytes(StandardCharsets.UTF_8)));
 
-        if (logTailLines.getAsInt() > 0) {
-            String logTail = buildServerLogTail();
+        if (includeServerLog.getAsBoolean() && logTailLines.getAsInt() > 0) {
+            String logTail = nameMasker.maskText(buildServerLogTail());
             if (!logTail.isEmpty()) {
                 extras.add(new BundleAttachment("extras/server-log.txt",
                     logTail.getBytes(StandardCharsets.UTF_8)));
@@ -72,6 +80,16 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
 
         extras.addAll(historicalExtras());
         return extras;
+    }
+
+    @Override
+    public List<BundleAttachment> configExtras() {
+        List<BundleAttachment> out = new ArrayList<>();
+        out.add(new BundleAttachment("extras/server.txt",
+            buildServerText().getBytes(StandardCharsets.UTF_8)));
+        out.add(new BundleAttachment("extras/plugins.txt",
+            buildPluginsText().getBytes(StandardCharsets.UTF_8)));
+        return out;
     }
 
     @Override
@@ -109,8 +127,7 @@ final class HytaleBundleExtrasProvider implements BundleExtrasProvider {
             out.append("server.name=<unavailable>\n");
         }
         try {
-            out.append("hytale.version=").append(HytaleServer.class
-                .getPackage().getImplementationVersion()).append('\n');
+            out.append("hytale.version=").append(HytaleServerVersion.get()).append('\n');
         } catch (Exception e) {
             out.append("hytale.version=<unavailable>\n");
         }

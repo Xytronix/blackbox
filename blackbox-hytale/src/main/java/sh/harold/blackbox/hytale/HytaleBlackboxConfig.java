@@ -4,9 +4,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import com.hypixel.hytale.codec.Codec;
 import com.hypixel.hytale.codec.KeyedCodec;
@@ -20,6 +24,7 @@ import sh.harold.blackbox.core.notify.discord.DiscordWebhookConfig;
 import sh.harold.blackbox.core.retention.RetentionPolicy;
 import sh.harold.blackbox.core.trigger.DetectorPolicy;
 import sh.harold.blackbox.core.trigger.ModulePolicy;
+import sh.harold.blackbox.core.trigger.TriggerKind;
 import sh.harold.blackbox.core.trigger.TriggerPolicy;
 
 /**
@@ -30,16 +35,22 @@ import sh.harold.blackbox.core.trigger.TriggerPolicy;
 final class HytaleBlackboxConfig {
     private static final String FILE_NAME = "blackbox";
 
-    private static final Duration DEFAULT_JFR_MAX_AGE = Duration.ofMinutes(30);
-    private static final long DEFAULT_JFR_MAX_SIZE_BYTES = 512L * 1024L * 1024L;
+    private static final Duration DEFAULT_JFR_MAX_AGE = Duration.ofMinutes(15);
+    private static final long DEFAULT_JFR_MAX_SIZE_BYTES = 256L * 1024L * 1024L;
     private static final String DEFAULT_JFR_RECORDING_NAME = "blackbox";
-    private static final Duration DEFAULT_JFR_POST_INCIDENT_MAX_WAIT = Duration.ofSeconds(60);
+    private static final Duration DEFAULT_JFR_POST_INCIDENT_MAX_WAIT = Duration.ofMinutes(2);
     private static final Duration DEFAULT_JFR_SNAPSHOT_INTERVAL = Duration.ofMinutes(10);
     private static final Duration DEFAULT_JFR_SAMPLE_INTERVAL = Duration.ofSeconds(10);
     private static final String DEFAULT_JFR_CONFIGURATION = "default";
+    private static final boolean DEFAULT_JFR_OLD_OBJECT_SAMPLING = false;
 
     private static final boolean DEFAULT_METRICS_ENABLED = false;
     private static final int DEFAULT_METRICS_RETENTION_DAYS = 7;
+    private static final boolean DEFAULT_METRICS_CPU = true;
+    private static final boolean DEFAULT_METRICS_ALLOCATION = false;
+    private static final boolean DEFAULT_PROMETHEUS_ENABLED = false;
+    private static final int DEFAULT_PROMETHEUS_PORT = 9099;
+    private static final String DEFAULT_PROMETHEUS_BIND = "127.0.0.1";
 
     private static final Duration DEFAULT_TRIGGER_COOLDOWN = Duration.ofSeconds(30);
     private static final Duration DEFAULT_TRIGGER_DEBOUNCE = Duration.ofSeconds(2);
@@ -50,7 +61,7 @@ final class HytaleBlackboxConfig {
     private static final DetectorPolicy DEFAULT_DETECTORS = DetectorPolicy.defaults();
 
     private static final int DEFAULT_RETENTION_MAX_COUNT = 25;
-    private static final long DEFAULT_RETENTION_MAX_TOTAL_BYTES = 0L;
+    private static final long DEFAULT_RETENTION_MAX_TOTAL_BYTES = 1024L * 1024L * 1024L;
     private static final Duration DEFAULT_RETENTION_MAX_AGE = Duration.ofDays(7);
 
     private static final String DEFAULT_DISCORD_WEBHOOK_URL = "";
@@ -62,7 +73,13 @@ final class HytaleBlackboxConfig {
     private static final boolean DEFAULT_CAPTURE_ALLOW_PLUGIN_EXTRAS = true;
     private static final int DEFAULT_CAPTURE_LOG_TAIL_LINES = 500;
     private static final boolean DEFAULT_CAPTURE_HEAP_HISTOGRAM = false;
+    private static final boolean DEFAULT_CAPTURE_INCLUDE_SERVER_LOG = false;
+    private static final boolean DEFAULT_CAPTURE_INCLUDE_SERVER_CONFIG = false;
+    private static final boolean DEFAULT_CAPTURE_INCLUDE_MOD_CONFIGS = false;
+    private static final boolean DEFAULT_CAPTURE_ALLOW_MOD_CONFIG_OPT_IN = true;
+    private static final boolean DEFAULT_CAPTURE_SANITIZE_LOG = true;
     private static final List<String> DEFAULT_CAPTURE_REDACT_PATTERNS = TextRedactor.DEFAULT_PATTERNS;
+    private static final List<String> FRAMEWORK_PREFIXES = List.of("com.hypixel.hytale.");
     private static final List<String> DEFAULT_CAPTURE_ARTIFACTS =
             List.of("jfr", "report", "env", "threads", "serverLog", "plugins", "worlds", "heartbeats", "server");
 
@@ -140,7 +157,7 @@ final class HytaleBlackboxConfig {
             triggerPolicy,
             new CapturePolicy(retentionPolicy, DEFAULT_CAPTURE_ENABLED,
                 DEFAULT_CAPTURE_ALLOW_PLUGIN_EXTRAS, DEFAULT_CAPTURE_LOG_TAIL_LINES,
-                DEFAULT_CAPTURE_REDACT_PATTERNS),
+                DEFAULT_CAPTURE_REDACT_PATTERNS).withFrameworkPrefixes(FRAMEWORK_PREFIXES),
             discord,
             DEFAULT_JFR_POST_INCIDENT_MAX_WAIT,
             DEFAULT_JFR_SNAPSHOT_INTERVAL,
@@ -252,6 +269,12 @@ final class HytaleBlackboxConfig {
                 "Trigger.Debounce",
                 logger
             );
+            Set<TriggerKind> cooldownExemptKinds = triggerKinds(
+                triggerCfg.cooldownExemptKinds,
+                TriggerPolicy.DEFAULT_COOLDOWN_EXEMPT_KINDS,
+                "Trigger.CooldownExemptKinds",
+                logger
+            );
             long stallDegradedMs = positiveLong(
                 triggerCfg.stallDegradedMs,
                 DEFAULT_STALL_DEGRADED_MS,
@@ -333,7 +356,10 @@ final class HytaleBlackboxConfig {
                 nonNegativeInt(triggerCfg.playerDropMinPlayers, DEFAULT_DETECTORS.playerDropMinPlayers(),
                     "Trigger.PlayerDropMinPlayers", logger),
                 triggerCfg.logErrorSkipSentry,
-                triggerCfg.logErrorRequireThrowable
+                triggerCfg.logErrorRequireThrowable,
+                nonNegativeDuration(triggerCfg.logErrorDedupeWindow, DEFAULT_DETECTORS.logErrorDedupeWindow(),
+                    "Trigger.LogErrorDedupeWindow", logger),
+                compilePatterns(triggerCfg.logErrorIgnore, "Trigger.LogErrorIgnore", logger)
             );
 
             int maxCount = nonNegativeInt(retentionCfg.maxCount, DEFAULT_RETENTION_MAX_COUNT, "Retention.MaxCount", logger);
@@ -351,6 +377,12 @@ final class HytaleBlackboxConfig {
                 );
                 maxAge = DEFAULT_RETENTION_MAX_AGE;
             }
+            int failedRecordingMaxCount = nonNegativeInt(
+                retentionCfg.failedRecordingMaxCount,
+                RetentionPolicy.DEFAULT_FAILED_RECORDING_MAX_COUNT,
+                "Retention.FailedRecordingMaxCount",
+                logger
+            );
 
             String webhookUrl = discordCfg.webhookUrl == null ? DEFAULT_DISCORD_WEBHOOK_URL : discordCfg.webhookUrl;
             Duration webhookCooldown = nonNegativeDuration(
@@ -381,23 +413,35 @@ final class HytaleBlackboxConfig {
                     recordingName,
                     jfrDisabledEvents,
                     new TriggerPolicy(cooldown, debounce, stallDegradedMs, stallCriticalMs,
-                        tickAvgDegradedMs, tickAvgCriticalMs, detectors),
+                        tickAvgDegradedMs, tickAvgCriticalMs, detectors, cooldownExemptKinds),
                     new CapturePolicy(
-                        new RetentionPolicy(maxCount, maxTotalBytes, maxAge),
+                        new RetentionPolicy(maxCount, maxTotalBytes, maxAge, failedRecordingMaxCount),
                         captureCfg.enabled,
                         captureCfg.allowPluginExtras,
                         logTailLines,
                         captureCfg.redactPatterns == null ? DEFAULT_CAPTURE_REDACT_PATTERNS : List.copyOf(captureCfg.redactPatterns),
                         captureCfg.artifacts == null ? Set.copyOf(DEFAULT_CAPTURE_ARTIFACTS) : Set.copyOf(captureCfg.artifacts),
-                        captureCfg.heapHistogram
+                        captureCfg.heapHistogram,
+                        captureCfg.includeServerLog,
+                        captureCfg.includeServerConfig,
+                        captureCfg.includeModConfigs,
+                        captureCfg.allowModConfigOptIn,
+                        captureCfg.sanitizeLog,
+                        FRAMEWORK_PREFIXES
                     ),
                     new DiscordWebhookConfig(webhookUrl, webhookCooldown, requestTimeout, username),
                     postIncidentMaxWait,
                     snapshotInterval,
                     jfrConfiguration,
                     sampleInterval,
+                    jfrCfg.oldObjectSampling,
                     metricsCfg.enabled,
-                    nonNegativeInt(metricsCfg.retentionDays, DEFAULT_METRICS_RETENTION_DAYS, "Metrics.RetentionDays", logger)
+                    nonNegativeInt(metricsCfg.retentionDays, DEFAULT_METRICS_RETENTION_DAYS, "Metrics.RetentionDays", logger),
+                    metricsCfg.cpu,
+                    metricsCfg.allocation,
+                    metricsCfg.prometheus.enabled,
+                    metricsCfg.prometheus.port,
+                    metricsCfg.prometheus.bind
                 );
             } catch (RuntimeException e) {
                 logger.log(System.Logger.Level.WARNING, "Invalid Blackbox config; falling back to defaults.", e);
@@ -426,6 +470,45 @@ final class HytaleBlackboxConfig {
                 return defaultValue;
             }
             return value;
+        }
+
+        private static List<Pattern> compilePatterns(List<String> regexes, String key, System.Logger logger) {
+            if (regexes == null || regexes.isEmpty()) {
+                return List.of();
+            }
+            List<Pattern> compiled = new ArrayList<>(regexes.size());
+            for (String regex : regexes) {
+                if (regex == null || regex.isBlank()) {
+                    continue;
+                }
+                try {
+                    compiled.add(Pattern.compile(regex));
+                } catch (PatternSyntaxException e) {
+                    logger.log(System.Logger.Level.WARNING,
+                        String.format("Skipping invalid %s pattern: %s", key, regex), e);
+                }
+            }
+            return List.copyOf(compiled);
+        }
+
+        private static Set<TriggerKind> triggerKinds(
+            List<String> names, Set<TriggerKind> fallback, String key, System.Logger logger) {
+            if (names == null) {
+                return fallback;
+            }
+            Set<TriggerKind> kinds = new LinkedHashSet<>();
+            for (String name : names) {
+                if (name == null || name.isBlank()) {
+                    continue;
+                }
+                try {
+                    kinds.add(TriggerKind.valueOf(name.trim().toUpperCase(Locale.ROOT)));
+                } catch (IllegalArgumentException e) {
+                    logger.log(System.Logger.Level.WARNING,
+                        String.format("Config %s has unknown trigger kind '%s'; ignoring.", key, name));
+                }
+            }
+            return kinds;
         }
 
         private static long nonNegativeLong(long value, long defaultValue, String key, System.Logger logger) {
@@ -475,6 +558,7 @@ final class HytaleBlackboxConfig {
         public Duration snapshotInterval = DEFAULT_JFR_SNAPSHOT_INTERVAL;
         public String configuration = DEFAULT_JFR_CONFIGURATION;
         public Duration sampleInterval = DEFAULT_JFR_SAMPLE_INTERVAL;
+        public boolean oldObjectSampling = DEFAULT_JFR_OLD_OBJECT_SAMPLING;
 
         static final BuilderCodec<Jfr> CODEC = BuilderCodec
             .builder(Jfr.class, Jfr::new)
@@ -518,6 +602,11 @@ final class HytaleBlackboxConfig {
                     c.sampleInterval = v;
                 }
             }, (c, ei) -> c.sampleInterval).add()
+            .append(new KeyedCodec<>("OldObjectSampling", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.oldObjectSampling = v;
+                }
+            }, (c, ei) -> c.oldObjectSampling).add()
             .build();
     }
 
@@ -528,6 +617,11 @@ final class HytaleBlackboxConfig {
         public List<String> redactPatterns = new ArrayList<>(DEFAULT_CAPTURE_REDACT_PATTERNS);
         public List<String> artifacts = new ArrayList<>(DEFAULT_CAPTURE_ARTIFACTS);
         public boolean heapHistogram = DEFAULT_CAPTURE_HEAP_HISTOGRAM;
+        public boolean includeServerLog = DEFAULT_CAPTURE_INCLUDE_SERVER_LOG;
+        public boolean includeServerConfig = DEFAULT_CAPTURE_INCLUDE_SERVER_CONFIG;
+        public boolean includeModConfigs = DEFAULT_CAPTURE_INCLUDE_MOD_CONFIGS;
+        public boolean allowModConfigOptIn = DEFAULT_CAPTURE_ALLOW_MOD_CONFIG_OPT_IN;
+        public boolean sanitizeLog = DEFAULT_CAPTURE_SANITIZE_LOG;
 
         static final BuilderCodec<Capture> CODEC = BuilderCodec
             .builder(Capture.class, Capture::new)
@@ -551,6 +645,31 @@ final class HytaleBlackboxConfig {
                     c.logTailLines = v;
                 }
             }, (c, ei) -> c.logTailLines).add()
+            .append(new KeyedCodec<>("IncludeServerLog", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.includeServerLog = v;
+                }
+            }, (c, ei) -> c.includeServerLog).add()
+            .append(new KeyedCodec<>("IncludeServerConfig", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.includeServerConfig = v;
+                }
+            }, (c, ei) -> c.includeServerConfig).add()
+            .append(new KeyedCodec<>("IncludeModConfigs", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.includeModConfigs = v;
+                }
+            }, (c, ei) -> c.includeModConfigs).add()
+            .append(new KeyedCodec<>("AllowModConfigOptIn", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.allowModConfigOptIn = v;
+                }
+            }, (c, ei) -> c.allowModConfigOptIn).add()
+            .append(new KeyedCodec<>("SanitizeLog", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.sanitizeLog = v;
+                }
+            }, (c, ei) -> c.sanitizeLog).add()
             .append(new KeyedCodec<>("RedactPatterns", Codec.STRING_ARRAY), (c, v, ei) -> {
                 if (v != null) {
                     c.redactPatterns = new ArrayList<>(List.of(v));
@@ -567,6 +686,7 @@ final class HytaleBlackboxConfig {
     private static final class Trigger {
         public Duration cooldown = DEFAULT_TRIGGER_COOLDOWN;
         public Duration debounce = DEFAULT_TRIGGER_DEBOUNCE;
+        public List<String> cooldownExemptKinds = defaultCooldownExemptKinds();
         public long stallDegradedMs = DEFAULT_STALL_DEGRADED_MS;
         public long stallCriticalMs = DEFAULT_STALL_CRITICAL_MS;
         public long tickAvgDegradedMs = DEFAULT_TICK_AVG_DEGRADED_MS;
@@ -586,6 +706,17 @@ final class HytaleBlackboxConfig {
         public int playerDropMinPlayers = DEFAULT_DETECTORS.playerDropMinPlayers();
         public boolean logErrorSkipSentry = DEFAULT_DETECTORS.logErrorSkipSentry();
         public boolean logErrorRequireThrowable = DEFAULT_DETECTORS.logErrorRequireThrowable();
+        public Duration logErrorDedupeWindow = DEFAULT_DETECTORS.logErrorDedupeWindow();
+        public List<String> logErrorIgnore = new ArrayList<>();
+
+        private static List<String> defaultCooldownExemptKinds() {
+            List<String> names = new ArrayList<>();
+            for (TriggerKind kind : TriggerPolicy.DEFAULT_COOLDOWN_EXEMPT_KINDS) {
+                names.add(kind.name());
+            }
+            java.util.Collections.sort(names);
+            return names;
+        }
 
         static final BuilderCodec<Trigger> CODEC = BuilderCodec
             .builder(Trigger.class, Trigger::new)
@@ -599,6 +730,11 @@ final class HytaleBlackboxConfig {
                     c.debounce = v;
                 }
             }, (c, ei) -> c.debounce).add()
+            .append(new KeyedCodec<>("CooldownExemptKinds", Codec.STRING_ARRAY), (c, v, ei) -> {
+                if (v != null) {
+                    c.cooldownExemptKinds = new ArrayList<>(List.of(v));
+                }
+            }, (c, ei) -> c.cooldownExemptKinds.toArray(new String[0])).add()
             .append(new KeyedCodec<>("StallDegradedMs", Codec.LONG), (c, v, ei) -> {
                 if (v != null) {
                     c.stallDegradedMs = v;
@@ -694,6 +830,16 @@ final class HytaleBlackboxConfig {
                     c.logErrorRequireThrowable = v;
                 }
             }, (c, ei) -> c.logErrorRequireThrowable).add()
+            .append(new KeyedCodec<>("LogErrorDedupeWindow", Codec.DURATION), (c, v, ei) -> {
+                if (v != null) {
+                    c.logErrorDedupeWindow = v;
+                }
+            }, (c, ei) -> c.logErrorDedupeWindow).add()
+            .append(new KeyedCodec<>("LogErrorIgnore", Codec.STRING_ARRAY), (c, v, ei) -> {
+                if (v != null) {
+                    c.logErrorIgnore = new ArrayList<>(List.of(v));
+                }
+            }, (c, ei) -> c.logErrorIgnore.toArray(new String[0])).add()
             .build();
     }
 
@@ -706,7 +852,7 @@ final class HytaleBlackboxConfig {
         public boolean cpuSaturation = true;
         public boolean netSaturation = true;
         public boolean playerDrop = true;
-        public boolean logError = true;
+        public boolean logError = false;
 
         static final BuilderCodec<Modules> CODEC = BuilderCodec
             .builder(Modules.class, Modules::new)
@@ -761,6 +907,9 @@ final class HytaleBlackboxConfig {
     private static final class Metrics {
         public boolean enabled = DEFAULT_METRICS_ENABLED;
         public int retentionDays = DEFAULT_METRICS_RETENTION_DAYS;
+        public boolean cpu = DEFAULT_METRICS_CPU;
+        public boolean allocation = DEFAULT_METRICS_ALLOCATION;
+        public Prometheus prometheus = new Prometheus();
 
         static final BuilderCodec<Metrics> CODEC = BuilderCodec
             .builder(Metrics.class, Metrics::new)
@@ -774,6 +923,36 @@ final class HytaleBlackboxConfig {
                     c.retentionDays = v;
                 }
             }, (c, ei) -> c.retentionDays).add()
+            .append(new KeyedCodec<>("Prometheus", Prometheus.CODEC), (c, v, ei) -> {
+                if (v != null) {
+                    c.prometheus = v;
+                }
+            }, (c, ei) -> c.prometheus).add()
+            .build();
+    }
+
+    private static final class Prometheus {
+        public boolean enabled = DEFAULT_PROMETHEUS_ENABLED;
+        public int port = DEFAULT_PROMETHEUS_PORT;
+        public String bind = DEFAULT_PROMETHEUS_BIND;
+
+        static final BuilderCodec<Prometheus> CODEC = BuilderCodec
+            .builder(Prometheus.class, Prometheus::new)
+            .append(new KeyedCodec<>("Enabled", Codec.BOOLEAN), (c, v, ei) -> {
+                if (v != null) {
+                    c.enabled = v;
+                }
+            }, (c, ei) -> c.enabled).add()
+            .append(new KeyedCodec<>("Port", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.port = v;
+                }
+            }, (c, ei) -> c.port).add()
+            .append(new KeyedCodec<>("Bind", Codec.STRING), (c, v, ei) -> {
+                if (v != null) {
+                    c.bind = v;
+                }
+            }, (c, ei) -> c.bind).add()
             .build();
     }
 
@@ -781,6 +960,7 @@ final class HytaleBlackboxConfig {
         public int maxCount = DEFAULT_RETENTION_MAX_COUNT;
         public long maxTotalBytes = DEFAULT_RETENTION_MAX_TOTAL_BYTES;
         public Duration maxAge = DEFAULT_RETENTION_MAX_AGE;
+        public int failedRecordingMaxCount = RetentionPolicy.DEFAULT_FAILED_RECORDING_MAX_COUNT;
 
         static final BuilderCodec<Retention> CODEC = BuilderCodec
             .builder(Retention.class, Retention::new)
@@ -789,6 +969,11 @@ final class HytaleBlackboxConfig {
                     c.maxCount = v;
                 }
             }, (c, ei) -> c.maxCount).add()
+            .append(new KeyedCodec<>("FailedRecordingMaxCount", Codec.INTEGER), (c, v, ei) -> {
+                if (v != null) {
+                    c.failedRecordingMaxCount = v;
+                }
+            }, (c, ei) -> c.failedRecordingMaxCount).add()
             .append(new KeyedCodec<>("MaxTotalBytes", Codec.LONG), (c, v, ei) -> {
                 if (v != null) {
                     c.maxTotalBytes = v;

@@ -204,7 +204,7 @@
   .pcount .plk{display:inline-flex;color:var(--tx4)}
   .pcount .plk svg{width:12px;height:12px}
   .pcount b{color:var(--tx2);font-weight:600}
-  .pcount:not(.z){cursor:help}
+  .pcount[data-tip]{cursor:help}
   .pcount.z{opacity:.5}
   .pct{color:var(--tx3)}
   tr.hl td{background:rgba(230,179,74,.06)!important}
@@ -327,6 +327,7 @@
   .chlegend .evmaster{cursor:pointer}
   .chlegend .evmaster:hover{color:var(--tx)}
   .chlegend .evmaster.off{opacity:.4;text-decoration:line-through}
+  .chlegend .evmore{margin-left:6px;color:var(--tx4);font-style:italic;cursor:help}
   .pmlegend .pmlg{cursor:pointer}
   .pmlegend .pmlg.off{opacity:.32;text-decoration:line-through}
   .bbar{display:inline-block;width:54px;height:7px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden;vertical-align:1px;margin-right:7px}
@@ -347,6 +348,21 @@
   .flamebar .srch .si{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tx4)}
   .flamebar input{background:var(--bg2);border:1px solid var(--border2);color:var(--tx);font-family:var(--mono);font-size:12px;padding:7px 11px 7px 32px;border-radius:7px;width:300px;outline:none}
   .flamebar input:focus{border-color:var(--blue)}
+  .flamelg{display:inline-flex;gap:11px;align-items:center}
+  .flamelg .flg{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--tx3)}
+  .flamelg .fsw{width:10px;height:10px;border-radius:2px;display:inline-block}
+  .thlink{cursor:pointer;border-bottom:1px dotted var(--tx4)}
+  .thlink:hover{color:var(--blue);border-bottom-color:var(--blue)}
+  tr.thsel td{background:rgba(98,168,234,.12)}
+  tr.thsel td:first-child{box-shadow:inset 2px 0 0 var(--blue)}
+  .flamelg .flgtog{cursor:pointer}
+  .flamelg .flgtog.off{opacity:.4;text-decoration:line-through}
+  .ttlabel[data-flamegroup]{cursor:pointer}
+  .ttlabel[data-flamegroup]:hover{color:var(--blue)}
+  .ttlabel.thsel{color:var(--blue)}
+  .tbar.wsel{margin:14px 0 0}
+  .tbar .wsl{color:var(--tx4);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;margin-right:2px}
+  .mpath .pf .thmn{color:var(--tx4);margin-left:10px}
   .fcrumb{font-size:11px;font-family:var(--mono);color:var(--tx2);background:var(--panel);border:1px solid var(--border);padding:4px 12px;border-radius:20px;cursor:pointer;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .fcrumb:hover{border-color:var(--blue);color:#cfe2f8}
   .fnote{font-size:11px;color:var(--tx4);font-family:var(--mono);margin-left:auto}
@@ -463,7 +479,7 @@ const ECOL={error:"#f0626b",warn:"#e6b34a",gc:"#a98be0",plugin:"#46cfc0",conn:"#
 const EVTYPES={error:true,warn:true,gc:true,plugin:true,conn:true};
 const EVOFF=new Set();
 let GCHL=true;
-let INCHL=true;
+let INCHL=D.incident.trigger!=="MANUAL";
 const evTypeKey=()=>["error","warn","gc","plugin","conn"].map(t=>EVTYPES[t]?1:0).join("");
 const zoomKey=()=>ZOOM?ZOOM.a.toFixed(4)+":"+ZOOM.b.toFixed(4):"f";
 const clamp01=v=>Math.max(0,Math.min(1,v));
@@ -485,6 +501,8 @@ function axFmt(v,step){
   if(step>=0.095) return v.toFixed(1);
   return v.toFixed(Math.min(6,Math.max(2,Math.ceil(-Math.log10(step)))));
 }
+function hmsToSec(s){const p=String(s).split(":").map(Number);return (p[0]||0)*3600+(p[1]||0)*60+(p[2]||0);}
+function secToHms(t){t=((t%86400)+86400)%86400;const z=n=>String(Math.floor(n)).padStart(2,"0");return z(t/3600)+":"+z(t%3600/60)+":"+z(t%60);}
 function renderChart(el){
   const cfg=CHARTS[el.dataset.chart]; if(!cfg) return;
   const w=el.clientWidth;
@@ -510,7 +528,7 @@ function renderChart(el){
   if(dmin>0&&dmax>0&&dmin>0.12*dmax) ymin=Math.max(0,dmin-((dmax-dmin)||dmax*0.1)*0.15);
   let ymax=(o.max!=null&&!ZOOM)?Math.max(o.max,dmax):dmax+(((dmax-ymin)||Math.abs(dmax)||1)*0.08);
   if(ymax<=ymin) ymax=ymin+1;
-  const padL=40, padR=12, padT=16, padB=10;
+  const padL=40, padR=12, padT=16, padB=(h>=120?22:10);
   const X=i=>n>1?padL+i*(w-padL-padR)/(n-1):w/2;
   const Y=v=>padT+(h-padT-padB)*(1-(v-ymin)/(ymax-ymin));
   const x0=X(0), x1=X(n-1);
@@ -528,13 +546,22 @@ function renderChart(el){
     for(let g=0;g<=4;g++){ const yv=ymin+step*g, y=Math.round(Y(yv))+0.5;
       grid+=`<line class="gridline" x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}"/><text class="axlab" x="${padL-6}" y="${y+3}" text-anchor="end">${axFmt(yv,step)}</text>`; }
   }
+  if(padB>=22&&has(D.incident.windowSec)&&D.incident.recStart){
+    const startSec=hmsToSec(D.incident.recStart);
+    const fa=N>1?i0/(N-1):0, fb=N>1?i1/(N-1):1, TICKS=5;
+    for(let g=0;g<TICKS;g++){
+      const p=g/(TICKS-1), xx=x0+p*(x1-x0), f=fa+p*(fb-fa);
+      grid+=`<text class="axlab" x="${xx.toFixed(1)}" y="${h-4}" text-anchor="${g===0?"start":g===TICKS-1?"end":"middle"}">${secToHms(startSec+f*D.incident.windowSec)}</text>`;
+    }
+  }
   let mk="", tint="";
   cfg.mark=null;
   if(o.marker){
     const gf=o.marker.frac!=null?clamp01(o.marker.frac):1;
     const vis=gf>=za-1e-9&&gf<=zb+1e-9;
     let xr=null;
-    if(INCHL&&o.marker.frac!=null){
+    const mcol=o.marker.kind==='profile'?'#46cfc0':'#f0626b';
+    if(INCHL&&o.marker.frac!=null&&o.marker.kind!=='profile'){
       const t0=Math.max(gf,za), t1=Math.min(1,zb);
       if(t1>t0+1e-6){
         const xa=fx(t0), xb=fx(t1);
@@ -543,9 +570,9 @@ function renderChart(el){
     }
     if(vis){
       xr=Math.round(fx(gf))+0.5;
-      if(INCHL) mk+=`<g pointer-events="none"><line x1="${xr}" y1="${padT-4}" x2="${xr}" y2="${h-padB}" stroke="#f0626b" stroke-width="1.2" stroke-dasharray="2 2"/></g>`;
+      if(INCHL) mk+=`<g pointer-events="none"><line x1="${xr}" y1="${padT-4}" x2="${xr}" y2="${h-padB}" stroke="${mcol}" stroke-width="1.2" stroke-dasharray="2 2"/></g>`;
     }
-    cfg.mark={frac:gf,x:xr,label:o.marker.label||"incident",recoverySec:o.marker.recoverySec};
+    cfg.mark={frac:gf,x:xr,label:o.marker.label||"incident",recoverySec:o.marker.recoverySec,kind:o.marker.kind};
   }
   let lane="";
   cfg.evByIdx=null;
@@ -711,7 +738,7 @@ function renderHoverAt(el,cfg,i){
   }
   const lines=[];
   if(cfg.mark&&incNear){
-    lines.push(`<div class="ctl cinc"><span class="cdot" style="background:#f0626b"></span><span class="ctxt">incident · ${esc(cfg.mark.label)}</span></div>`);
+    lines.push(`<div class="ctl cinc"><span class="cdot" style="background:${cfg.mark.kind==='profile'?'#46cfc0':'#f0626b'}"></span><span class="ctxt">${cfg.mark.kind==='profile'?'profile':'incident'} · ${esc(cfg.mark.label)}</span></div>`);
   }
   if(cfg.gcSet&&cfg.gcSet.has(i)){
     lines.push(`<div class="ctl"><span class="cdot" style="background:#e6b34a"></span><span class="ctxt">GC pause in this interval</span></div>`);
@@ -878,7 +905,7 @@ function donut(segs,{size=132,thick=20}={}){
 const I = {
   warn:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.7 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg>',
   cpu:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><rect x="9.5" y="9.5" width="5" height="5" rx=".7"/><path d="M9 2v2M12 2v2M15 2v2M9 20v2M12 20v2M15 20v2M2 9h2M2 12h2M2 15h2M20 9h2M20 12h2M20 15h2"/></svg>',
-  linux:'<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2 0-3.3 1.7-3.3 3.9 0 1 .1 1.6.1 2.4 0 .8-.7 1.6-1.4 2.7C6.4 12.4 5 14.2 5 16c0 .9.4 1.4 1 1.7-.2.5-.4 1-.4 1.5 0 .6.4 1 1 1.2.5.2 1.2.2 1.9.4.6.2 1.1.6 1.9.6.5 0 .9-.2 1.1-.5.2.3.6.5 1.1.5.8 0 1.3-.4 1.9-.6.7-.2 1.4-.2 1.9-.4.6-.2 1-.6 1-1.2 0-.5-.2-1-.4-1.5.6-.3 1-.8 1-1.7 0-1.8-1.4-3.6-2.4-5-.7-1.1-1.4-1.9-1.4-2.7 0-.8.1-1.4.1-2.4C15.3 3.7 14 2 12 2zm-1.6 4.1c.4 0 .7.4.7.9s-.3.9-.7.9-.7-.4-.7-.9.3-.9.7-.9zm3.2 0c.4 0 .7.4.7.9s-.3.9-.7.9-.7-.4-.7-.9.3-.9.7-.9zM12 8.6c.7 0 1.5.3 2 .7.3.2.2.5-.1.6l-1.5.7c-.3.1-.6.1-.9 0l-1.5-.7c-.3-.1-.4-.4-.1-.6.5-.4 1.3-.7 2.1-.7z"/></svg>',
+  linux:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2 0-3.3 1.7-3.3 3.9 0 1 .1 1.6.1 2.4 0 .8-.7 1.6-1.4 2.7C6.4 12.4 5 14.2 5 16c0 .9.4 1.4 1 1.7-.2.5-.4 1-.4 1.5 0 .6.4 1 1 1.2.5.2 1.2.2 1.9.4.6.2 1.1.6 1.9.6.5 0 .9-.2 1.1-.5.2.3.6.5 1.1.5.8 0 1.3-.4 1.9-.6.7-.2 1.4-.2 1.9-.4.6-.2 1-.6 1-1.2 0-.5-.2-1-.4-1.5.6-.3 1-.8 1-1.7 0-1.8-1.4-3.6-2.4-5-.7-1.1-1.4-1.9-1.4-2.7 0-.8.1-1.4.1-2.4C15.3 3.7 14 2 12 2zm-1.6 4.1c.4 0 .7.4.7.9s-.3.9-.7.9-.7-.4-.7-.9.3-.9.7-.9zm3.2 0c.4 0 .7.4.7.9s-.3.9-.7.9-.7-.4-.7-.9.3-.9.7-.9zM12 8.6c.7 0 1.5.3 2 .7.3.2.2.5-.1.6l-1.5.7c-.3.1-.6.1-.9 0l-1.5-.7c-.3-.1-.4-.4-.1-.6.5-.4 1.3-.7 2.1-.7z"/></svg>',
   java:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13.5h11v2.2a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z"/><path d="M16 14h1.6a1.7 1.7 0 0 1 0 3.4H16"/><path d="M9.5 9.5c-1-1 .5-2 .5-3s-1-1.5-.6-2.6"/><path d="M12.8 9.8c-.8-.8.4-1.6.4-2.4"/><line x1="6.5" y1="21.5" x2="15.5" y2="21.5"/></svg>',
   win:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.6 10.4 4.5v7H3zM11.4 4.35 21 3v8.5h-9.6zM3 12.5h7.4v6.9L3 18.4zM11.4 12.5H21V21l-9.6-1.4z"/></svg>',
   apple:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.8-3.5.8s-1.8-.8-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7 2-1 2.8-2.1c.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.3 5.8c.6-.8 1-1.9.9-3-1 0-2.1.6-2.8 1.4-.6.7-1.1 1.8-1 2.8 1.1.1 2.2-.5 2.9-1.2z"/></svg>',
@@ -935,10 +962,11 @@ const DV=(()=>{
     lowLoad:(D.incident.samples||0)<300,
     heapG, rssG, diskG, hostMemG,
     win:has(D.incident.windowSec)?Math.floor(D.incident.windowSec/60)+"m "+String(D.incident.windowSec%60).padStart(2,"0")+"s":null,
-    span:(D.incident.recStart&&D.incident.created)?{from:D.incident.recStart,to:(D.incident.created.split(" ")[1]||"")}:null,
-    incMarker:{label:has(D.incident.stallMs)?("stall "+D.incident.stallMs+"ms"):humanTrigger(D.incident.trigger),
-      frac:has(D.incident.markerFrac)?D.incident.markerFrac:null,
-      recoverySec:has(D.incident.recoverySec)?D.incident.recoverySec:null},
+    span:(D.incident.recStart&&has(D.incident.windowSec))?{from:D.incident.recStart,to:secToHms(hmsToSec(D.incident.recStart)+D.incident.windowSec)}:null,
+    incMarker:has(D.incident.markerFrac)?{label:has(D.incident.stallMs)?("stall "+D.incident.stallMs+"ms"):humanTrigger(D.incident.trigger),
+      frac:D.incident.markerFrac,
+      recoverySec:has(D.incident.recoverySec)?D.incident.recoverySec:null,kind:'incident'}
+      :has(D.incident.profileFrac)?{label:'profile start',frac:D.incident.profileFrac,recoverySec:null,kind:'profile'}:null,
     gcName:D.sys?gcDisplayName(D.sys.gcYoung,D.sys.gcOld):null,
     samples:D.incident.samples||null
   };
@@ -1042,14 +1070,17 @@ function sliceAvg(arr,a,b){
   return n?s/n:null;
 }
 function comparisonHtml(){
-  if(!has(D.incident.markerFrac)) return "";
+  if(!has(D.incident.markerFrac)||D.incident.markerFrac<0.2) return "";
   const ser=D.series||{}, mf=D.incident.markerFrac;
+  const recov=has(D.incident.recoverySec);
+  const term=D.incident.trigger==="MANUAL"?"profile":"incident";
   const b1=Math.max(0.1,mf-0.1), ia=Math.max(0,mf-0.02);
   const metrics=[
     {l:"Tick rate",s:ser.tps,u:"tps",dec:1,bad:"down"},
     {l:"Tick interval",s:ser.mspt,u:"ms",dec:1,bad:"up"},
     {l:"Players",s:ser.players,u:"players",dec:0,bad:null},
     {l:"Entities",s:ser.entities,u:"entities",dec:0,bad:"up25warn"},
+    {l:"Chunks",s:ser.chunks,u:"chunks",dec:0,bad:null},
     {l:"Machine CPU",s:ser.cpu,u:"%",dec:1,bad:"up"},
     {l:"Heap",s:DV.heapG,u:"GiB",dec:1,bad:null},
     {l:"RSS",s:DV.rssG,u:"GB",dec:1,bad:null},
@@ -1102,9 +1133,9 @@ function comparisonHtml(){
       .forEach(x=>{rows+=cmpRow(x.ts.name,sliceAvg(x.ts.series,0,b1),sliceAvg(x.ts.series,ia,1),"ms",1,"up");});
   }
   if(!rows) return "";
-  return `<div class="card cmpwrap" id="cmpcard"><h3><span class="ic" style="color:var(--blue)">${I.clock}</span> Baseline vs incident window</h3>
-    <div class="subnote">Average over the calm window vs the incident window. Calm: the first ${Math.round(b1*100)}% of the recording; incident: from just before the marker through recovery.</div>
-    <div class="tscroll"><table><thead><tr>${thc("Metric","Series averaged over each window")}${thc("Baseline avg","Average over the calm window",{r:true})}${thc("Incident avg","Average from just before the incident through recovery",{r:true})}${thc("Delta","Red when the change direction is bad for this metric; grey under ±5%.",{r:true})}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  return `<div class="card cmpwrap" id="cmpcard"><h3><span class="ic" style="color:var(--blue)">${I.clock}</span> Baseline vs ${term} window</h3>
+    <div class="subnote">Average over the calm window vs the ${term} window. Calm: the first ${Math.round(b1*100)}% of the recording; ${term}: from just before the marker${recov?" through recovery":" to the end of the capture"}.</div>
+    <div class="tscroll"><table><thead><tr>${thc("Metric","Series averaged over each window")}${thc("Baseline avg","Average over the calm window",{r:true})}${thc((term==="profile"?"Profile":"Incident")+" avg","Average from just before the "+term+(recov?" through recovery":" to the end of the capture"),{r:true})}${thc("Delta","Red when the change direction is bad for this metric; grey under ±5%.",{r:true})}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 function diagnosisHtml(){
   const T=DV.samples, ser=D.series||{};
@@ -1191,12 +1222,13 @@ function statsInner(o){
   return out;
 }
 function legendHtml(withGc){
-  const parts=[`<span class="ls"><span class="smp"></span>metric</span>`,
-    `<span class="ls inctog" data-inctog data-tip="toggle the incident marker line and window tint"><span class="smp dsh"></span>incident</span>`];
+  const parts=[`<span class="ls"><span class="smp"></span>metric</span>`];
+  if(has(D.incident.markerFrac)) parts.push(`<span class="ls inctog" data-inctog data-tip="toggle the incident marker line and window tint"><span class="smp dsh"></span>incident</span>`);
+  else if(has(D.incident.profileFrac)) parts.push(`<span class="ls inctog" data-inctog data-tip="toggle the profile-start marker"><span class="smp dsh" style="background:#46cfc0"></span>profile start</span>`);
   if(D.events&&D.events.length){
     parts.push(`<span class="ls"><span class="evmaster" data-evmaster data-tip="hide or show event lines in this section"><span class="smp evs"></span> events</span> `
       +["error","warn","gc","plugin","conn"].map(t=>`<span class="edot evtog" data-evtype="${t}" style="background:${ECOL[t]}" data-tip="toggle ${t==="conn"?"connection":t} events"></span>`).join("")
-      +`<span class="evcount"></span></span>`);
+      +`<span class="evcount"></span>${(has(D.eventsHidden)&&D.eventsHidden>0)?`<span class="evmore" data-tip="${D.eventsHidden} earlier event${D.eventsHidden===1?"":"s"} exceeded the on-chart cap and are not shown">+${D.eventsHidden} earlier</span>`:""}</span>`);
   }
   if(withGc&&Array.isArray(D.gcOverlap)&&D.gcOverlap.length){
     parts.push(`<span class="ls gctog" data-gctog data-tip="toggle the amber GC-overlap highlight"><span class="edot" style="background:#e6b34a"></span> GC overlap</span>`);
@@ -1210,7 +1242,7 @@ function metricsHtml(){
   const flatZero=[];
   const allZero=s=>Array.isArray(s)&&s.length>0&&s.every(v=>v===0);
   const tickWhy=D.tps?(D.incident.world&&D.incident.world!==D.tps.world
-    ?` Shown for ${worldLabel(D.tps.world)}, the busiest world by CPU samples — the incident world has no tick series.`
+    ?` Shown for ${worldLabel(D.tps.world)}, the busiest world by CPU samples; the incident world has no tick series.`
     :` Shown for the incident world.`):"";
   const card=(ic,title,tip,series,chartOpts,statBuilder)=>{
     const chart=lineChart(series,Object.assign({h:170,times:DV.span,marker:DV.incMarker},chartOpts));
@@ -1272,6 +1304,13 @@ function metricsHtml(){
       ser.entities,{color:"#a98be0",unit:"",decimals:0},
       (s,z)=>{const st=sstat(s);
         return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,max:st.max,dec:0,unitLabel:"entities"});});
+  }
+  if(allZero(ser.chunks)) flatZero.push("Chunks");
+  else if(ser.chunks){
+    card(I.layers,"Chunks","Total loaded chunks across all worlds; per-world counts in Worlds.",
+      ser.chunks,{color:"#46cfc0",unit:"",decimals:0},
+      (s,z)=>{const st=sstat(s);
+        return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,max:st.max,dec:0,unitLabel:"chunks"});});
   }
   if(allZero(ser.ping)) flatZero.push("Player ping");
   else if(ser.ping){
@@ -1335,7 +1374,7 @@ function metricsHtml(){
   if(allZero(ser.netOut)) flatZero.push("Network out");
   else if(ser.netOut){
     card(I.net,`Network out${D.net?` · ${esc(D.net.iface)}`:""}`,
-      `Outbound throughput (jdk.NetworkUtilization, host-wide per interface)${D.net?`. Inbound averaged ${D.net.inAvg.toFixed(1)} Mb/s`:""}.`,
+      `Outbound throughput (jdk.NetworkUtilization, host-wide per interface)${(D.net&&has(D.net.inAvg))?`. Inbound averaged ${D.net.inAvg.toFixed(1)} Mb/s`:""}.`,
       ser.netOut,{color:"#a98be0",unit:" Mb/s",decimals:1},
       (s,z)=>{const st=sstat(s);
         return statsInner({now:s[s.length-1],min:st.min,
@@ -1470,7 +1509,7 @@ function engineHtml(){
   const ts=(D.tickSystems||[]).filter(r=>r&&r.length>=6);
   const series=(D.tickSeries||[]).filter(s=>s&&s.name&&s.series&&s.series.length>=2);
   if(!ts.length&&!series.length){
-    return D.tickSystemsNote?`<div class="subnote" id="tsnote">${esc(D.tickSystemsNote)}</div>`:"";
+    return "";
   }
   const BUDGET=(D.tps&&D.tps.target>0)?1000/D.tps.target:100/3;
   const parts=[];
@@ -1512,30 +1551,38 @@ function engineHtml(){
 
 function flameHtml(){
   if(!D.flame||!Array.isArray(D.flame)||!Array.isArray(D.flame[2])||!D.flame[2].length) return "";
-  return `<p class="lead">Every execution sample's full stack aggregated into one tree: width is sample share, depth is the call path.</p>
-  <div class="flamebar"><span class="srch"><span class="si">${I.search}</span><input id="flamefilter" placeholder="filter frames…"></span><span class="fcrumb" id="flamecrumb" style="display:none"></span><span class="fnote" id="flamenote"></span></div>
+  const sw=(o,c,l)=>`<span class="flg flgtog" data-own="${o}" data-tip="show or hide ${l} frames"><span class="fsw" style="background:${c}"></span>${l}</span>`;
+  return `<p class="lead">Every execution sample's full stack, grouped by thread at the top level. Width is sample share, depth is the call path.</p>
+  <div class="flamebar"><span class="srch"><span class="si">${I.search}</span><input id="flamefilter" placeholder="filter frames…"></span><span class="flamelg">${sw(1,"hsl(205,54%,46%)","engine")}${sw(2,"hsl(33,80%,50%)","mod")}${sw(3,"hsl(220,5%,46%)","JDK")}</span><span class="fcrumb" id="flamecrumb" style="display:none"></span><span class="fnote" id="flamenote"></span></div>
   <canvas id="flamecv" class="bbtipcv" height="520"></canvas>`;
 }
 function initFlame(){
   const cv=$("#flamecv"); if(!cv||!D.flame) return;
   const ROW=18, AROW=10, MAXH=520;
-  const parse=n=>({name:String(n[0]),samples:n[1],children:(n[2]||[]).map(parse)});
+  const parse=n=>({name:String(n[0]),samples:n[1],children:(n[2]||[]).map(parse),owner:n[3]|0});
   const root=parse(D.flame);
   let path=[root];
   let filter="";
   let cells=[];
+  const ownOff={};
   const hue=name=>{
     const cls=String(name).split(".")[0]||String(name);
     let h=0; for(let i=0;i<cls.length;i++) h=(h*31+cls.charCodeAt(i))>>>0;
     return h%360;
   };
-  const colorOf=(name,anc)=>`hsl(${hue(name)},${anc?26:44}%,${anc?36:48}%)`;
+  const OWNER_HUE={0:265,1:205,2:33,3:220}, OWNER_SAT={0:16,1:54,2:80,3:5};
+  const colorOf=(node,anc)=>{
+    const o=node.owner|0, j=hue(node.name)%24-12;
+    const s=anc?Math.max(8,OWNER_SAT[o]-20):OWNER_SAT[o];
+    const l=anc?34:(o===0?30:(o===2?50:46));
+    return `hsl(${OWNER_HUE[o]+j},${s}%,${l}%)`;
+  };
   function render(){
     const cssW=cv.clientWidth||(cv.parentElement?cv.parentElement.clientWidth:0); if(!cssW) return;
     const dpr=devicePixelRatio||1;
     const cur=path[path.length-1];
     let depth=0;
-    (function dd(n,d){if(d>depth)depth=d;if(d<64)n.children.forEach(c=>dd(c,d+1));})(cur,0);
+    (function dd(n,d){const hid=d>0&&!!ownOff[n.owner];if(!hid&&d>depth)depth=d;const cd=hid?d:d+1;if(cd<64)n.children.forEach(c=>dd(c,cd));})(cur,0);
     const ancRows=path.length-1;
     const availRows=Math.max(3,Math.floor((MAXH-ancRows*AROW)/ROW));
     const shownDepth=Math.min(depth+1,availRows);
@@ -1549,7 +1596,7 @@ function initFlame(){
     cells=[];
     for(let a=0;a<ancRows;a++){
       const nd=path[a], y=a*AROW;
-      ctx.globalAlpha=.55; ctx.fillStyle=colorOf(nd.name,true);
+      ctx.globalAlpha=.55; ctx.fillStyle=colorOf(nd,true);
       ctx.fillRect(0,y,cssW,AROW-1); ctx.globalAlpha=1;
       cells.push({x:0,y,w:cssW,h:AROW-1,node:nd,kind:"anc",pathIdx:a});
     }
@@ -1558,30 +1605,34 @@ function initFlame(){
     const draw=(n,x,w,d)=>{
       if(d>=shownDepth||w<1) return;
       const y=y0+d*ROW;
-      const dim=filter&&!matches(n);
-      ctx.globalAlpha=dim?.22:1;
-      ctx.fillStyle=colorOf(n.name,false);
-      ctx.fillRect(x,y,Math.max(w-0.6,0.4),ROW-1);
-      if(w>40){
-        ctx.fillStyle=dim?"rgba(214,218,226,.4)":"rgba(10,11,14,.85)";
-        ctx.save();ctx.beginPath();ctx.rect(x+3,y,w-6,ROW);ctx.clip();
-        ctx.fillText(String(n.name),x+4,y+ROW/2);
-        ctx.restore();
+      const hidden=d>0&&!!ownOff[n.owner];
+      if(!hidden){
+        const dim=filter&&!matches(n);
+        ctx.globalAlpha=dim?.22:1;
+        ctx.fillStyle=colorOf(n,false);
+        ctx.fillRect(x,y,Math.max(w-0.6,0.4),ROW-1);
+        if(w>40){
+          ctx.fillStyle=dim?"rgba(214,218,226,.4)":"rgba(10,11,14,.85)";
+          ctx.save();ctx.beginPath();ctx.rect(x+3,y,w-6,ROW);ctx.clip();
+          ctx.fillText(String(n.name),x+4,y+ROW/2);
+          ctx.restore();
+        }
+        ctx.globalAlpha=1;
+        cells.push({x,y,w,h:ROW-1,node:n,kind:"cell"});
       }
-      ctx.globalAlpha=1;
-      cells.push({x,y,w,h:ROW-1,node:n,kind:"cell"});
+      const cd=hidden?d:d+1;
       let cx=x, childSum=0;
       n.children.forEach(c=>{childSum+=c.samples;});
       n.children.forEach(c=>{
         const cw=w*c.samples/(n.samples||1);
-        draw(c,cx,cw,d+1);
+        draw(c,cx,cw,cd);
         cx+=cw;
       });
       const gapN=n.samples-childSum;
-      if(n.children.length&&gapN>0&&d+1<shownDepth){
+      if(n.children.length&&gapN>0&&!hidden&&cd<shownDepth){
         const gw=w*gapN/(n.samples||1);
         if(gw>=1){
-          const gy=y0+(d+1)*ROW;
+          const gy=y0+cd*ROW;
           ctx.globalAlpha=.06; ctx.fillStyle="#ffffff";
           ctx.fillRect(cx,gy,Math.max(gw-0.6,0.4),ROW-1); ctx.globalAlpha=1;
           cells.push({x:cx,y:gy,w:gw,h:ROW-1,node:null,kind:"gap",gapN});
@@ -1596,6 +1647,7 @@ function initFlame(){
       if(path.length>1){crumb.style.display="";crumb.textContent="⟲ "+cur.name+" · reset";}
       else crumb.style.display="none";
     }
+    if(typeof markThreadGroup==="function") markThreadGroup(path.length>=2?path[1].name:null);
   }
   function cellAt(mx,my){
     for(let i=cells.length-1;i>=0;i--){
@@ -1615,7 +1667,7 @@ function initFlame(){
     TIP.textContent=txt; TIP.style.display="block";
     const tw=TIP.offsetWidth, th=TIP.offsetHeight, m=8;
     let x=e.clientX+12; if(x+tw>innerWidth-m)x=e.clientX-tw-12;
-    let y=e.clientY-th-10; if(y<m)y=e.clientY+14;
+    let y=e.clientY+16; if(y+th>innerHeight-m)y=e.clientY-th-12;
     TIP.style.left=Math.max(m,x)+"px"; TIP.style.top=Math.max(m,y)+"px";
   });
   cv.addEventListener("mouseleave",()=>hideTip());
@@ -1626,7 +1678,12 @@ function initFlame(){
   }
   function zoomTo(node){
     const p=findPath(node,root,[]);
-    if(p){path=p;render();}
+    if(p){path=p;render();cv.scrollIntoView({block:"nearest"});}
+  }
+  function jumpToBest(){
+    let best=null;
+    (function walk(n){if(String(n.name).toLowerCase().includes(filter)&&(!best||n.samples>best.samples))best=n;n.children.forEach(walk);})(root);
+    if(best) zoomTo(best);
   }
   cv.addEventListener("click",e=>{
     const r=cv.getBoundingClientRect();
@@ -1635,21 +1692,25 @@ function initFlame(){
     if(c.kind==="anc"){path=path.slice(0,c.pathIdx+1);render();return;}
     if(c.node!==path[path.length-1]) zoomTo(c.node);
   });
-  cv.addEventListener("dblclick",()=>{path=[root];render();});
-  const crumbEl=$("#flamecrumb");
-  if(crumbEl) crumbEl.addEventListener("click",()=>{path=[root];render();});
   const fin=$("#flamefilter");
+  function resetFlame(){ path=[root]; filter=""; if(fin) fin.value=""; render(); }
+  cv.addEventListener("dblclick",resetFlame);
+  const crumbEl=$("#flamecrumb");
+  if(crumbEl) crumbEl.addEventListener("click",resetFlame);
   if(fin){
-    fin.addEventListener("input",()=>{filter=fin.value.trim().toLowerCase();render();});
-    fin.addEventListener("keydown",e=>{
-      if(e.key!=="Enter"||!filter) return;
-      let best=null;
-      (function walk(n){if(String(n.name).toLowerCase().includes(filter)&&(!best||n.samples>best.samples))best=n;n.children.forEach(walk);})(root);
-      if(best) zoomTo(best);
+    let fTimer=null;
+    fin.addEventListener("input",()=>{
+      filter=fin.value.trim().toLowerCase(); render();
+      clearTimeout(fTimer);
+      if(filter) fTimer=setTimeout(jumpToBest,220);
     });
+    fin.addEventListener("keydown",e=>{ if(e.key==="Enter"&&filter) jumpToBest(); });
   }
+  document.querySelectorAll(".flamelg .flgtog").forEach(el=>el.addEventListener("click",()=>{
+    const o=+el.dataset.own; ownOff[o]=!ownOff[o]; el.classList.toggle("off",ownOff[o]); render();
+  }));
   flameRender=render;
-  window.BBFLAME={cells:()=>cells,zoomTo,reset:()=>{path=[root];render();},rootNode:()=>path[path.length-1],tree:root,
+  window.BBFLAME={cells:()=>cells,zoomTo,reset:resetFlame,rootNode:()=>path[path.length-1],tree:root,
     setFilter:v=>{filter=String(v).trim().toLowerCase();if(fin)fin.value=v;render();}};
   render();
 }
@@ -1659,7 +1720,8 @@ function threadTimelineHtml(){
   if(!tt||!tt.length) return "";
   const lg=[["RUNNABLE","#5bd68b"],["WAITING","#62a8ea"],["TIMED WAITING","#a98be0"],["BLOCKED","#f0626b"]]
     .map(([k,c])=>`<span><span class="edot" style="background:${c}"></span>${k}</span>`).join(" ");
-  const labels=tt.map(t=>`<div class="ttlabel" data-tipov="${esc(t.name)}">${esc(t.name)}</div>`).join("");
+  const hasFlame=!!(D.flame&&Array.isArray(D.flame)&&Array.isArray(D.flame[2])&&D.flame[2].length);
+  const labels=tt.map(t=>`<div class="ttlabel"${hasFlame?` data-flamegroup="${esc(threadGroup(t.name))}"`:""} data-tipov="${esc(t.name)}">${esc(t.name)}</div>`).join("");
   const ttCnt=(has(D.threadTotal)&&D.threadTotal>tt.length)?`top ${tt.length} of ${D.threadTotal} threads · `:"";
   return `<div class="ttlegend">${lg}<span style="margin-left:auto" class="pkg">${ttCnt}modal sampled state per interval; gaps had no samples</span></div>
   <div class="ttwrap"><div class="ttlabels">${labels}</div><div class="ttcv"><canvas id="ttcanvas" class="bbtipcv"></canvas></div></div>`;
@@ -1708,22 +1770,76 @@ function initThreadTimeline(){
     const r=cv.getBoundingClientRect();
     const mx=e.clientX-r.left,my=e.clientY-r.top;
     const row=Math.floor(my/ROWH), col=Math.floor(mx/geo.cw);
-    if(row<0||row>=tt.length||col<0||col>=geo.n){hideTip();return;}
+    if(row<0||row>=tt.length||col<0||col>=geo.n){hideTip();cv.style.cursor="default";return;}
+    cv.style.cursor="pointer";
     const idx=geo.i0+col, s=tt[row].states[idx]||0;
     const ck=globalClock(idx/((geo.N-1)||1));
     TIP.textContent=`${tt[row].name} · ${SNAME[s]||s}${ck?" · "+ck:""}`;
     TIP.style.display="block";
     const tw=TIP.offsetWidth, th=TIP.offsetHeight, m=8;
     let x=e.clientX+12; if(x+tw>innerWidth-m)x=e.clientX-tw-12;
-    let y=e.clientY-th-10; if(y<m)y=e.clientY+14;
+    let y=e.clientY+16; if(y+th>innerHeight-m)y=e.clientY-th-12;
     TIP.style.left=Math.max(m,x)+"px"; TIP.style.top=Math.max(m,y)+"px";
   });
   cv.addEventListener("mouseleave",()=>hideTip());
+  cv.addEventListener("click",e=>{
+    const r=cv.getBoundingClientRect();
+    const row=Math.floor((e.clientY-r.top)/ROWH);
+    if(row>=0&&row<tt.length&&typeof flameFocusGroup==="function") flameFocusGroup(threadGroup(tt[row].name));
+  });
   ttRender=render;
   window.BBTT={render,geo:()=>geo};
   render();
 }
 
+function cpuSubBars(rows){
+  const T=DV.samples;
+  if(!rows||!rows.length) return `<div class="pkg" style="padding:6px 2px">no samples</div>`;
+  const mx=Math.max(...rows.map(s=>s[1]));
+  return rows.map(s=>{const p=T?pct(s[1],T):0;return `<div class="wbar"><div class="wn"><span class="tnc" data-tipov="${esc(s[0])}">${esc(s[0])}</span></div><div class="wt"><div class="wf" style="width:${(100*s[1]/Math.max(1,mx)).toFixed(1)}%"></div></div><div class="wv">${fmt(s[1])} · ${p.toFixed(1)}%</div></div>`;}).join("");
+}
+function cpuModBars(rows,rich){
+  const T=DV.samples;
+  if(!rows||!rows.length) return `<div class="pkg" style="padding:6px 2px">no samples</div>`;
+  const mx=Math.max(...rows.map(m=>m[1]));
+  return rows.map(m=>{
+    const mod=m[0],samp=m[1],p=T?pct(samp,T):0,meth=rich?m[2]:null,thr=rich?m[3]:null;
+    const bar=`<div class="wbar"><div class="wn"><span style="min-width:0"><span class="tnc" data-tipov="${esc(mod)}">${esc(mod)}</span>${meth?`<div class="modmeth" data-tipov="${esc(meth)}">${esc(leafName(meth))}</div>`:""}</span></div><div class="wt"><div class="wf" style="width:${(100*samp/Math.max(1,mx)).toFixed(1)}%"></div></div><div class="wv">${fmt(samp)} · ${p.toFixed(1)}%</div></div>`;
+    const tt=(thr&&thr.length)?thr.map(t=>`${esc(t[0])} ${(100*t[1]/Math.max(1,samp)).toFixed(0)}%`).join(" · "):"";
+    return tt?`<div>${bar}<div class="modthr" data-tipov="${tt}">on ${tt}</div></div>`:`<div>${bar}</div>`;
+  }).join("");
+}
+function setCpuWorld(w){
+  const sub=document.getElementById("cpuSub"), mod=document.getElementById("cpuMod");
+  if(!sub&&!mod) return;
+  document.querySelectorAll("[data-cpuworld]").forEach(c=>c.classList.toggle("on",c.dataset.cpuworld===w));
+  if(w==="*"){
+    if(sub) sub.innerHTML=cpuSubBars(D.subsystems||[]);
+    if(mod) mod.innerHTML=cpuModBars(D.modCpu||[],true);
+  } else {
+    const wc=(D.cpuByWorld||[]).find(x=>x.world===w)||{};
+    if(sub) sub.innerHTML=cpuSubBars(wc.subsystems||[]);
+    if(mod) mod.innerHTML=cpuModBars(wc.mods||[],false);
+  }
+  if(typeof pruneBarTips==="function") pruneBarTips();
+}
+function allocBarsT(items,nowrap,tot){
+  if(!items||!items.length) return `<div class="pkg" style="padding:6px 2px">no samples</div>`;
+  const mx=Math.max(...items.map(i=>i[1]));
+  return items.map(i=>`<div class="wbar"><div class="wn"><span${nowrap?' class="tnc"':""} data-tipov="${esc(String(i[0]))}">${esc(String(i[0]))}</span></div><div class="wt"><div class="wf al" style="width:${(100*i[1]/Math.max(1,mx)).toFixed(1)}%"></div></div><div class="wv">${fmtBytes(i[1])} · ${pct(i[1],tot).toFixed(1)}%</div></div>`).join("");
+}
+function setAllocWorld(w){
+  const sub=document.getElementById("allocSub"), mod=document.getElementById("allocMod");
+  if((!sub&&!mod)||!D.alloc) return;
+  document.querySelectorAll("[data-allocworld]").forEach(c=>c.classList.toggle("on",c.dataset.allocworld===w));
+  const tot=(has(D.alloc.total)&&D.alloc.total>0?D.alloc.total:(D.alloc.bySubsystem||[]).reduce((a,s)=>a+s[1],0))||1;
+  let bs,bm;
+  if(w==="*"){ bs=D.alloc.bySubsystem||[]; bm=D.alloc.byMod||[]; }
+  else { const wc=(D.alloc.byWorld||[]).find(x=>x.world===w)||{}; bs=wc.bySubsystem||[]; bm=wc.byMod||[]; }
+  if(sub) sub.innerHTML=allocBarsT(bs,false,tot);
+  if(mod) mod.innerHTML=allocBarsT(bm,true,tot);
+  if(typeof pruneBarTips==="function") pruneBarTips();
+}
 function cpuHtml(){
   const ser=D.series||{}, T=DV.samples;
   const parts=[];
@@ -1766,27 +1882,20 @@ function cpuHtml(){
       const chart=lineChart(null,{h:195,unit:" tps",decimals:1,times:DV.span,marker:DV.incMarker,multi:lines});
       const cid="ch"+CHART_ID;
       const legend=`<div class="pmlegend">${wt.map((w,k)=>`<span class="pmlg" data-pml="${cid}:${k}" data-tip="${esc(w.name)}"><span class="edot" style="background:${lines[k].color}"></span>${esc(lines[k].name)}</span>`).join(" ")}</div>`;
-      const more=all.length>wt.length?` · top ${wt.length} of ${all.length} by CPU — all worlds in the Worlds table`:"";
+      const more=all.length>wt.length?` · top ${wt.length} of ${all.length} by CPU; all worlds in the Worlds table`:"";
       parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Tick rate by world</span><span class="ctm">${wt.length} world${wt.length===1?"":"s"}${(D.tps&&has(D.tps.target))?" · target "+D.tps.target+" tps":""}${more}</span></div>${legend}${chart}</div>`);
     }
   }
-  if(D.subsystems&&D.subsystems.length&&T){
-    const smax=Math.max(...D.subsystems.map(s=>s[1]));
-    const subBars=D.subsystems.map(s=>{
-      const [name,samp]=s, p=pct(samp,T);
-      return `<div class="wbar"><div class="wn"><span>${esc(name)}</span></div><div class="wt"><div class="wf" style="width:${(100*samp/Math.max(1,smax)).toFixed(1)}%"></div></div><div class="wv">${fmt(samp)} · ${p.toFixed(1)}%</div></div>`;
-    }).join("");
-    parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Where CPU goes, by engine subsystem</span><span class="ctm">classified by deepest stack frame</span></div><div class="wbars">${subBars}</div></div>`);
-  }
-  if(D.modCpu&&D.modCpu.length&&T){
-    const mmax=Math.max(...D.modCpu.map(m=>m[1]));
-    const modBars=D.modCpu.map(m=>{
-      const [mod,samp,meth,thr]=m, p=pct(samp,T);
-      const bar=`<div class="wbar"><div class="wn"><span style="min-width:0"><span class="tnc" data-tipov="${esc(mod)}">${esc(mod)}</span>${meth?`<div class="modmeth" data-tipov="${esc(meth)}">${esc(leafName(meth))}</div>`:""}</span></div><div class="wt"><div class="wf" style="width:${(100*samp/Math.max(1,mmax)).toFixed(1)}%"></div></div><div class="wv">${fmt(samp)} · ${p.toFixed(1)}%</div></div>`;
-      const tt=(thr&&thr.length)?thr.map(t=>`${esc(t[0])} ${(100*t[1]/Math.max(1,samp)).toFixed(0)}%`).join(" · "):"";
-      return tt?`<div>${bar}<div class="modthr" data-tipov="${tt}">on ${tt}</div></div>`:`<div>${bar}</div>`;
-    }).join("");
-    parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Where CPU goes, by mod</span><span class="ctm">samples touching each mod's code</span></div><div class="wbars">${modBars}</div></div>`);
+  if(((D.subsystems&&D.subsystems.length)||(D.modCpu&&D.modCpu.length))&&T){
+    const worlds=(D.cpuByWorld||[]).filter(w=>w.samples>0);
+    if(worlds.length>1){
+      parts.push(`<div class="tbar wsel"><span class="wsl">scope</span><span class="chip tog on" data-cpuworld="*">all worlds</span>`
+        +worlds.map(w=>`<span class="chip tog" data-cpuworld="${esc(w.world)}">${esc(worldLabel(w.world))} · ${pct(w.samples,T).toFixed(0)}%</span>`).join("")+`</div>`);
+    }
+    if(D.subsystems&&D.subsystems.length)
+      parts.push(`<div class="chartcard" style="margin-top:12px"><div class="cth"><span class="ctt">Where CPU goes, by engine subsystem</span><span class="ctm">classified by deepest stack frame</span></div><div class="wbars" id="cpuSub"></div></div>`);
+    if(D.modCpu&&D.modCpu.length)
+      parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Where CPU goes, by mod</span><span class="ctm">samples touching each mod's code</span></div><div class="wbars" id="cpuMod"></div></div>`);
   }
   return lead+(ser.cpu?legendHtml():"")+parts.join("");
 }
@@ -1804,24 +1913,84 @@ function methodsHtml(){
   <div class="tscroll"><div class="tcap"><table class="sortable" id="meth-t"><thead><tr>${thc("#","Rank by sample count",{r:true})}${thc("Method","The most-sampled (leaf) method.",{sort:"text"})}${thc("Samples","Execution samples in which this was the leaf frame",{sort:"num",r:true,def:"desc"})}${thc("Self&nbsp;%","Share of all execution samples",{sort:"num",r:true})}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
+function markThreadGroup(name){
+  document.querySelectorAll("#th-t tbody tr, #pool-t tbody tr").forEach(tr=>{
+    const link=tr.querySelector("[data-flamegroup]");
+    tr.classList.toggle("thsel", !!name&&!!link&&link.getAttribute("data-flamegroup")===name);
+  });
+  document.querySelectorAll(".ttlabels [data-flamegroup]").forEach(el=>{
+    el.classList.toggle("thsel", !!name&&el.getAttribute("data-flamegroup")===name);
+  });
+}
+function threadGroup(name){
+  if(name==null) return "(unknown thread)";
+  let i=name.length-1;
+  while(i>=0&&name[i]>="0"&&name[i]<="9") i--;
+  if(i<name.length-1&&i>=0&&(name[i]==="-"||name[i]==="#")) return name.slice(0,i);
+  return name;
+}
+function flameFocusGroup(g){
+  const F=window.BBFLAME; if(!F||!F.tree) return;
+  const sec=document.getElementById("flame"); if(sec) sec.classList.remove("collapsed");
+  const node=(F.tree.children||[]).find(c=>c.name===g);
+  if(node) F.zoomTo(node); else F.reset();
+  if(sec) sec.scrollIntoView({behavior:"smooth",block:"start"});
+  requestAnimationFrame(()=>{ if(flameRender) flameRender(); });
+}
+function threadMethodsHtml(methods,thSamples){
+  if(!methods||!methods.length) return "";
+  const items=methods.map(m=>{
+    const mp=thSamples?pct(m[1],thSamples):null;
+    return `<div class="pf"><span class="arr">•</span>${shortMethod(m[0])}<span class="thmn">${fmt(m[1])}${mp!=null?` · ${mp.toFixed(0)}%`:""}</span></div>`;
+  }).join("");
+  return `<div class="mpath" hidden><span class="plab">top methods on this thread</span>${items}</div>`;
+}
+function poolSummaryHtml(ht,T){
+  const groups={};
+  ht.forEach(t=>{const g=threadGroup(t[2]); const e=groups[g]||(groups[g]={s:0,n:0}); e.s+=t[0]; e.n++;});
+  const all=Object.entries(groups).filter(([,v])=>v.n>=2).sort((a,b)=>b[1].s-a[1].s);
+  const minShare=T?T*0.003:0;
+  let pools=all.filter(([,v])=>v.s>=minShare).slice(0,12);
+  if(!pools.length&&all.length) pools=all.slice(0,1);
+  if(!pools.length) return "";
+  const more=all.length-pools.length;
+  const max=pools[0][1].s||1;
+  const rows=pools.map(([g,v])=>{
+    const p=T?pct(v.s,T):null;
+    return `<tr><td class="nm"><span class="thlink" data-flamegroup="${esc(g)}" data-tip="Focus this pool in the flame graph">${esc(g)}</span></td><td class="r" data-num="${v.n}">${v.n}</td><td class="r" data-num="${v.s}">${fmt(v.s)}</td><td class="r"><span class="bbar"><i style="width:${(100*v.s/max).toFixed(0)}%;background:var(--blue)"></i></span><span class="pct">${p!=null?p.toFixed(1)+"%":"·"}</span></td></tr>`;
+  }).join("");
+  const note=more>0?`<div class="subnote" style="margin-top:4px">+${more} smaller pool${more===1?"":"s"} below 0.3% not shown</div>`:"";
+  return `<div class="card" style="margin-bottom:14px"><h3><span class="ic" style="color:var(--blue)">${I.threads}</span> Thread pools (aggregated)</h3>
+  <div class="subnote">Worker pools collapsed by name; samples summed across each pool's threads.</div>
+  <div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter pools…" data-filter="pool-t"></span><span class="count" data-count="pool-t">${pools.length} rows</span></div>
+  <div class="tscroll"><table class="sortable" id="pool-t"><thead><tr>${thc("Pool / group","Threads sharing a base name",{sort:"text"})}${thc("Threads","Number of threads in the group",{sort:"num",r:true})}${thc("Samples","Execution samples summed across the group",{sort:"num",r:true,def:"desc"})}${thc("Self&nbsp;%","Share of all samples",{sort:"num",r:true})}</tr></thead><tbody>${rows}</tbody></table></div>${note}</div>`;
+}
 function threadsHtml(){
   const ht=D.hotThreads||[];
   if(!ht.length) return "";
   const T=DV.samples;
   const anyState=ht.some(t=>t[1]);
+  const hasFlame=!!(D.flame&&Array.isArray(D.flame)&&Array.isArray(D.flame[2])&&D.flame[2].length);
   const rows=ht.map((t,i)=>{
-    const [s,st,name,meth]=t;
+    const [s,st,name,meth,meths]=t;
     const p=T?pct(s,T):null;
     const stall=DV.stalled && name.indexOf(DV.stalled.name)>=0;
     const stCell=anyState?`<td>${st?`<span class="st ${esc(st)}">${esc(String(st).replace("_"," "))}</span>`:"·"}</td>`:"";
-    return `<tr><td class="rank">${i+1}</td><td class="nm${stall?' stallname':''}"${stall?' data-tip="Tick thread of the stalled world."':''}>${esc(name)}</td>${stCell}<td class="r" data-num="${s}">${fmt(s)}</td><td class="r"><span class="pct">${p!=null?p.toFixed(2)+"%":"·"}</span></td><td>${splitMethod(meth)}</td></tr>`;
+    const nameCell=hasFlame
+      ? `<span class="thlink" data-flamegroup="${esc(threadGroup(name))}" data-tip="Focus this thread in the flame graph">${esc(name)}</span>`
+      : esc(name);
+    const methCell=(meths&&meths.length)
+      ? `<td class="mcell"><div class="mname"><span class="exp">▸</span>${splitMethod(meth)}</div>${threadMethodsHtml(meths,s)}</td>`
+      : `<td>${splitMethod(meth)}</td>`;
+    return `<tr><td class="rank">${i+1}</td><td class="nm${stall?' stallname':''}"${stall?' data-tip="Tick thread of the stalled world."':''}>${nameCell}</td>${stCell}<td class="r" data-num="${s}">${fmt(s)}</td><td class="r"><span class="pct">${p!=null?p.toFixed(2)+"%":"·"}</span></td>${methCell}</tr>`;
   }).join("");
   const stHead=anyState?thc("State","State when last sampled; only RUNNABLE threads gather CPU samples.",{sort:"text"}):"";
   const top=DV.topThread;
   return `<p class="lead">Threads ranked by execution samples.${top&&T?` The busiest is <code class="mono">${esc(top[2])}</code> at <b>${pct(top[0],T).toFixed(1)}%</b>, with its most-sampled frame in <code class="mono" style="color:var(--violet)">${esc(leafName(top[3]))}</code>.`:""}${anyState?" CPU sampling only sees on-CPU threads, so waiting and blocked threads rarely appear here.":""}</p>
+  ${poolSummaryHtml(ht,T)}
   ${threadTimelineHtml()}
   <div class="tbar"><span class="srch"><span class="si">${I.search}</span><input placeholder="filter threads…" data-filter="th-t"></span>${has(D.threadTotal)?`<span class="chip">${D.threadTotal} live threads</span>`:""}<span class="count" data-count="th-t">${ht.length} rows</span></div>
-  <div class="tscroll"><div class="tcap"><table class="sortable" id="th-t"><thead><tr>${thc("#","Rank by sample count",{r:true})}${thc("Thread","JVM thread name",{sort:"text"})}${stHead}${thc("Samples","Execution samples attributed to this thread",{sort:"num",r:true,def:"desc"})}${thc("Self&nbsp;%","Share of all samples",{sort:"num",r:true})}${thc("Top method","Most-sampled method on this thread",{sort:"text"})}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  <div class="tscroll"><div class="tcap"><table class="sortable" id="th-t"><thead><tr>${thc("#","Rank by sample count",{r:true})}${thc("Thread","JVM thread name",{sort:"text"})}${stHead}${thc("Samples","Execution samples attributed to this thread",{sort:"num",r:true,def:"desc"})}${thc("Self&nbsp;%","Share of all samples",{sort:"num",r:true})}${thc("Top method","Most-sampled method on this thread; expand for the thread's top methods",{sort:"text"})}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 function statesHtml(){
@@ -1918,8 +2087,13 @@ function memHtml(){
     };
     const arate=has(D.incident.windowSec)&&D.incident.windowSec>0?` ≈ ${fmtBytes(tot/D.incident.windowSec)}/s`:"";
     const note=`<div class="subnote">JFR allocation samples over the window: allocation pressure (GC churn), not retained RAM. ${fmtBytes(tot)} of sampled allocations attributed${arate}.</div>`;
-    if((D.alloc.bySubsystem||[]).length) parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Where allocation pressure goes, by engine subsystem</span><span class="ctm">${fmtBytes(tot)} sampled</span></div>${note}<div class="wbars">${allocBars(D.alloc.bySubsystem,false)}</div></div>`);
-    if((D.alloc.byMod||[]).length) parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Where allocation pressure goes, by mod</span><span class="ctm">${fmtBytes(tot)} sampled</span></div><div class="wbars">${allocBars(D.alloc.byMod,true)}</div></div>`);
+    const aworlds=(D.alloc.byWorld||[]).filter(w=>w.bytes>0);
+    if(aworlds.length>1){
+      parts.push(`<div class="tbar wsel"><span class="wsl">scope</span><span class="chip tog on" data-allocworld="*">all worlds</span>`
+        +aworlds.map(w=>`<span class="chip tog" data-allocworld="${esc(w.world)}">${esc(worldLabel(w.world))} · ${pct(w.bytes,tot).toFixed(0)}%</span>`).join("")+`</div>`);
+    }
+    if((D.alloc.bySubsystem||[]).length) parts.push(`<div class="chartcard" style="margin-top:12px"><div class="cth"><span class="ctt">Where allocation pressure goes, by engine subsystem</span><span class="ctm">${fmtBytes(tot)} sampled</span></div>${note}<div class="wbars" id="allocSub"></div></div>`);
+    if((D.alloc.byMod||[]).length) parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Where allocation pressure goes, by mod</span><span class="ctm">${fmtBytes(tot)} sampled</span></div><div class="wbars" id="allocMod"></div></div>`);
     if((D.alloc.byThread||[]).length) parts.push(`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Top allocating threads</span><span class="ctm">allocation samples</span></div><div class="wbars">${allocBars(D.alloc.byThread,true)}</div></div>`);
     if((D.alloc.byClass||[]).length){
       const mx=Math.max(...D.alloc.byClass.map(i=>i[1]));
@@ -1973,25 +2147,27 @@ function memHtml(){
 function networkHtml(){
   const ser=D.series||{};
   if(!D.net) return "";
+  const mb=v=>has(v)?v.toFixed(1):"n/a";
+  const inKnown=has(D.net.inAvg);
   const others=Array.isArray(D.net.others)?D.net.others.filter(o=>o&&o.length>=5):[];
   const cards=[];
-  if(ser.netOut) cards.push(`<div class="chartcard"><div class="cth"><span class="ctt">Outbound network over capture window</span><span class="ctm">${esc(D.net.iface)} · avg ${D.net.outAvg.toFixed(1)} · peak ${D.net.outPeak.toFixed(1)} Mb/s</span></div>${lineChart(ser.netOut,{h:195,color:"#a98be0",max:Math.max(1,Math.ceil(D.net.outPeak*1.12)),unit:" Mb/s",decimals:1,times:DV.span,marker:DV.incMarker})}</div>`);
+  if(ser.netOut) cards.push(`<div class="chartcard"><div class="cth"><span class="ctt">Outbound network over capture window</span><span class="ctm">${esc(D.net.iface)} · avg ${mb(D.net.outAvg)} · peak ${mb(D.net.outPeak)} Mb/s</span></div>${lineChart(ser.netOut,{h:195,color:"#a98be0",max:Math.max(1,Math.ceil(D.net.outPeak*1.12)),unit:" Mb/s",decimals:1,times:DV.span,marker:DV.incMarker})}</div>`);
   const rows=[
     ["Interface",D.net.iface],
-    ["Outbound avg / peak",D.net.outAvg.toFixed(1)+" / "+D.net.outPeak.toFixed(1)+" Mb/s"],
-    ["Inbound avg / peak",D.net.inAvg.toFixed(1)+" / "+D.net.inPeak.toFixed(1)+" Mb/s"]
+    ["Outbound avg / peak",mb(D.net.outAvg)+" / "+mb(D.net.outPeak)+" Mb/s"],
+    ["Inbound avg / peak",inKnown?(mb(D.net.inAvg)+" / "+mb(D.net.inPeak)+" Mb/s"):"n/a"]
   ];
   if(has(D.incident.windowSec)&&D.incident.windowSec>0){
     const tot=mbps=>{const mb=mbps*D.incident.windowSec/8;return mb>=1000?(mb/1000).toFixed(1)+" GB":Math.round(mb)+" MB";};
-    rows.push(["Transferred in (window)","≈ "+tot(D.net.inAvg)]);
+    if(inKnown) rows.push(["Transferred in (window)","≈ "+tot(D.net.inAvg)]);
     rows.push(["Transferred out (window)","≈ "+tot(D.net.outAvg)]);
   }
   others.forEach(o=>rows.push([String(o[0]),`in ${Number(o[1]).toFixed(1)}/${Number(o[2]).toFixed(1)} · out ${Number(o[3]).toFixed(1)}/${Number(o[4]).toFixed(1)} Mb/s`]));
   rows.push(["Throughput source","jdk.NetworkUtilization (per-interface, host-wide)"]);
   cards.push(`<div class="kvcard"><div class="kvh"><span class="ic">${I.net}</span><b>Network</b><small>${esc(D.net.iface)}</small></div><div class="kv">${rows.map(r=>`<div class="row"><span class="k">${esc(r[0])}</span><span class="v">${esc(r[1])}</span></div>`).join("")}</div></div>`);
   let out=cards.length===2?`<div class="charts2">${cards.join("")}</div>`:cards.join("");
-  if(ser.netIn) out+=`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Inbound network over capture window</span><span class="ctm">avg ${D.net.inAvg.toFixed(1)} · peak ${D.net.inPeak.toFixed(1)} Mb/s</span></div>${lineChart(ser.netIn,{h:150,color:"#62a8ea",max:Math.max(1,Math.ceil(D.net.inPeak*1.25)),unit:" Mb/s",decimals:1,times:DV.span,marker:DV.incMarker})}</div>`;
-  const lead=`<p class="lead">Network throughput on <code class="mono">${esc(D.net.iface)}</code> over the window. Outbound averaged <b>${D.net.outAvg.toFixed(1)} Mb/s</b> (peak ${D.net.outPeak.toFixed(1)}); inbound <b>${D.net.inAvg.toFixed(1)} Mb/s</b> (peak ${D.net.inPeak.toFixed(1)}). Rates are host-wide for the interface.${others.length?` <b>${others.length}</b> other active interface${others.length===1?"":"s"} listed in the Network card.`:""}</p>`;
+  if(ser.netIn) out+=`<div class="chartcard" style="margin-top:16px"><div class="cth"><span class="ctt">Inbound network over capture window</span><span class="ctm">avg ${mb(D.net.inAvg)} · peak ${mb(D.net.inPeak)} Mb/s</span></div>${lineChart(ser.netIn,{h:150,color:"#62a8ea",max:Math.max(1,Math.ceil(D.net.inPeak*1.25)),unit:" Mb/s",decimals:1,times:DV.span,marker:DV.incMarker})}</div>`;
+  const lead=`<p class="lead">Network throughput on <code class="mono">${esc(D.net.iface)}</code> over the window. Outbound averaged <b>${mb(D.net.outAvg)} Mb/s</b> (peak ${mb(D.net.outPeak)})${inKnown?`; inbound <b>${mb(D.net.inAvg)} Mb/s</b> (peak ${mb(D.net.inPeak)})`:`; inbound n/a`}. Rates are host-wide for the interface.${others.length?` <b>${others.length}</b> other active interface${others.length===1?"":"s"} listed in the Network card.`:""}</p>`;
   return lead+((ser.netOut||ser.netIn)?legendHtml():"")+out;
 }
 
@@ -2067,6 +2243,7 @@ function systemHtml(){
     card(I.cpu,"Processor",has(s.cpuCores)?s.cpuCores+" cores":"",[
       row("Brand",s.cpuBrand),row("Cores",s.cpuCores),row("Hardware threads",s.hwThreads),row("Sockets",s.sockets),
       row("Container CPU",has(s.cpuUsageCores)&&s.cpuUsageCores>=0?s.cpuUsageCores.toFixed(2)+" cores"+(s.container&&has(s.container.cpuLimit)&&s.container.cpuLimit>0&&has(s.cpuCores)&&s.container.cpuLimit<s.cpuCores?" ("+(100*s.cpuUsageCores/s.container.cpuLimit).toFixed(0)+"% of limit)":(has(s.cpuCores)&&s.cpuCores>0?" ("+(100*s.cpuUsageCores/s.cpuCores).toFixed(0)+"% of "+s.cpuCores+" cores)":"")):null),
+      row("CPU affinity (cpuset)",s.cpuset||null),
       row("Pressure (PSI some avg10)",[has(s.psiCpu)&&s.psiCpu>=0?"cpu "+s.psiCpu.toFixed(1)+"%":null,has(s.psiIo)&&s.psiIo>=0?"io "+s.psiIo.toFixed(1)+"%":null,has(s.psiMem)&&s.psiMem>=0?"mem "+s.psiMem.toFixed(1)+"%":null].filter(Boolean).join(" · ")||null),
       row("Machine RAM (host)",has(s.ramTotal)&&s.ramTotal>0?gb(s.ramTotal).toFixed(1)+" GB":null),
       row("Load average (1m, host)",has(s.loadAvg)&&s.loadAvg>=0?s.loadAvg.toFixed(2):null),
@@ -2234,16 +2411,18 @@ function configHtml(){
 }
 
 function diagSectionsHtml(){
-  const ds=D.diag;
-  if(!ds||!ds.length) return "";
+  const ds=(D.diag||[]).filter(d=>d.title==="Stalled thread"||d.title==="Deadlocked thread");
+  if(!ds.length) return "";
   const cards=ds.map(d=>{
     const rows=d.entries.map(e=>`<div class="row"><span class="k">${esc(e[0])}</span><span class="v">${esc(e[1])}</span></div>`).join("");
-    return `<div class="kvcard" style="margin-bottom:16px"><div class="kvh"><span class="ic">${I.doc}</span><b>${esc(d.title)}</b></div><div class="kv">${rows}</div></div>`;
+    const pre=d.pre?`<pre class="logpre" style="margin:12px 0 0">${esc(d.pre)}</pre>`:"";
+    return `<div class="kvcard" style="margin-bottom:16px"><div class="kvh"><span class="ic">${I.doc}</span><b>${esc(d.title)}</b></div><div class="kv">${rows}</div>${pre}</div>`;
   }).join("");
   return cards;
 }
 
 const html=[
+  sec("stalled",I.warn,"Stalled thread","blocked thread at capture",diagSectionsHtml()),
   sec("diagnosis",I.warn,"Diagnosis","what the recording shows",diagnosisHtml()),
   sec("metrics",I.pulse,"Key metrics","over the capture window",metricsHtml()),
   sec("cpu",I.cpu,"CPU & load","per-world attribution",cpuHtml()),
@@ -2260,8 +2439,7 @@ const html=[
   sec("plugins",I.layers,"Plugins",(D.plugins&&D.plugins.length?D.plugins.length+" loaded":""),pluginsHtml()),
   sec("assetpacks",I.layers,"Asset packs",(D.assetPacks&&D.assetPacks.length?D.assetPacks.length+" loaded":""),assetPacksHtml()),
   sec("log",I.term,"Server log","captured tail",logHtml()),
-  sec("config",I.doc,"Config files & mixins","captured configuration",configHtml()),
-  sec("diags",I.doc,"Diagnostics","plugin-contributed sections",diagSectionsHtml())
+  sec("config",I.doc,"Config files & mixins","captured configuration",configHtml())
 ].join("");
 $("#sections").innerHTML=html;
 
@@ -2335,6 +2513,11 @@ document.querySelectorAll(".mname").forEach(el=>el.addEventListener("click",()=>
   const tr=el.closest("tr"); tr.classList.toggle("open");
   const p=tr.querySelector(".mpath"); if(p) p.hidden=!p.hidden;
 }));
+document.querySelectorAll("[data-flamegroup]").forEach(el=>el.addEventListener("click",()=>flameFocusGroup(el.dataset.flamegroup)));
+document.querySelectorAll("[data-cpuworld]").forEach(el=>el.addEventListener("click",()=>setCpuWorld(el.dataset.cpuworld)));
+setCpuWorld("*");
+document.querySelectorAll("[data-allocworld]").forEach(el=>el.addEventListener("click",()=>setAllocWorld(el.dataset.allocworld)));
+setAllocWorld("*");
 
 function buildMarkdown(){
   const T=DV.samples, ser=D.series||{}, L=[];
@@ -2350,6 +2533,11 @@ function buildMarkdown(){
   if(D.threadStates) diag.push(`- Threads: ${D.threadTotal??"?"} live, ${D.threadStates.BLOCKED||0} blocked`);
   if(D.ram&&D.sys&&has(D.sys.ramTotal)) diag.push(`- Memory: RSS ${gb(D.ram.rssLast).toFixed(1)} GB of ${gb(D.sys.ramTotal).toFixed(1)} GB${D.heap?`; heap peak ${gib(D.heap.peak).toFixed(1)} GiB`:""}`);
   if(diag.length){ L.push(`## Diagnosis`); L.push(...diag); L.push(""); }
+  if(D.deadlocked&&D.deadlocked.length){
+    L.push(`## Deadlock detected (${D.deadlocked.length})`);
+    D.deadlocked.forEach(d=>L.push(`- ${d}`));
+    L.push("");
+  }
   if(D.sys){
     L.push(`## Environment`);
     if(D.sys.os) L.push(`- OS: ${D.sys.os}${D.sys.arch?` (${D.sys.arch})`:""}`);
@@ -2403,6 +2591,16 @@ function buildMarkdown(){
   if(D.hotMethods&&D.hotMethods.length&&T){
     L.push(`## Hot methods`,"| # | Method | Samples | Self% |","|---|---|---|---|");
     D.hotMethods.slice(0,10).forEach((m,i)=>L.push(`| ${i+1} | ${m[1]} | ${fmt(m[0])} | ${pct(m[0],T).toFixed(2)}% |`));
+    L.push("");
+  }
+  if(D.hotThreads&&D.hotThreads.length&&T){
+    L.push(`## Hot threads`,"| Thread | State | Samples | CPU% | Top method |","|---|---|---|---|---|");
+    D.hotThreads.slice(0,10).forEach(ht=>L.push(`| ${ht[2]} | ${ht[1]} | ${fmt(ht[0])} | ${pct(ht[0],T).toFixed(1)}% | ${ht[3]?leafName(ht[3]):"-"} |`));
+    L.push("");
+  }
+  if(D.subsystems&&D.subsystems.length&&T){
+    L.push(`## CPU by engine subsystem`,"| Subsystem | Samples | Share |","|---|---|---|");
+    D.subsystems.slice(0,10).forEach(s=>L.push(`| ${s[0]} | ${fmt(s[1])} | ${pct(s[1],T).toFixed(1)}% |`));
     L.push("");
   }
   if(D.modCpu&&D.modCpu.length&&T){
@@ -2495,7 +2693,7 @@ function buildMarkdown(){
   }
   if(D.assetPacks&&D.assetPacks.length){
     L.push(`## Asset packs`,`${D.assetPacks.length} loaded`);
-    D.assetPacks.forEach(p=>L.push(`- ${p[1]} ${p[2]}${p[5]==="INCOMPATIBLE"?` — INCOMPATIBLE (declares server range ${p[4]||"?"})`:""}`));
+    D.assetPacks.forEach(p=>L.push(`- ${p[1]} ${p[2]}${p[5]==="INCOMPATIBLE"?` · INCOMPATIBLE (declares server range ${p[4]||"?"})`:""}`));
     L.push("");
   }
   if(MIXCONF.list&&MIXCONF.list.length){
@@ -2549,8 +2747,8 @@ document.addEventListener("mouseover",e=>{
   TIP.style.display="block";
   const r=a.getBoundingClientRect(), tw=TIP.offsetWidth, th=TIP.offsetHeight, m=8;
   let x=r.left+r.width/2-tw/2; x=Math.max(m,Math.min(innerWidth-tw-m,x));
-  let y=r.top-th-9;
-  if(y<m) y=r.bottom+9;
+  let y=r.bottom+9;
+  if(y+th>innerHeight-m) y=r.top-th-9;
   y=Math.max(m,Math.min(y,innerHeight-th-m));
   TIP.style.left=x+"px"; TIP.style.top=y+"px";
 });

@@ -83,6 +83,7 @@ class ReportHtmlTest {
         assertFalse(html.contains("\"arch\":null"));
         assertTrue(html.contains("\"loadAvg\""));
         assertTrue(html.contains("\"openFds\""));
+        assertTrue(html.contains("\"cpuset\""));
         assertTrue(html.contains("\"gcByCollector\":[[\"Shenandoah Pauses\",362,44]]"));
         assertFalse(html.contains("<script src="));
     }
@@ -135,31 +136,47 @@ class ReportHtmlTest {
     }
 
     @Test
+    void stalledThreadSectionRendersStackAndHeaderHighlight() throws Exception {
+        LinkedHashMap<String, String> entries = new LinkedHashMap<>();
+        entries.put("Thread", "WorldThread - default");
+        entries.put("State", "WAITING");
+        entries.put("Blocked in", "com.example.Plugin.onEntityRemove");
+        String stack = "at jdk.internal.misc.Unsafe.park(Native Method)\n"
+            + "at com.example.Plugin.onEntityRemove(Plugin.java:1)";
+
+        String html = render(report(null, List.of(new DiagnosticSection("Stalled thread", entries, stack))));
+
+        assertTrue(html.contains("\"title\":\"Stalled thread\""));
+        assertTrue(html.contains("\"pre\":\"at jdk.internal.misc.Unsafe.park"));
+        assertTrue(html.contains("Blocked in <code>com.example.Plugin.onEntityRemove</code>"));
+    }
+
+    @Test
     void routesSectionsByTitle() throws Exception {
         LinkedHashMap<String, String> mixins = new LinkedHashMap<>();
-        mixins.put("Bootstrapper", "Hyinit 0.2.1");
-        mixins.put("refixes.mixins.json", "MixinA, MixinB");
+        mixins.put("Bootstrapper", "ExampleLoader 1.0.0");
+        mixins.put("example.mixins.json", "MixinA, MixinB");
         mixins.put("Conflict: com.hypixel.hytale.X",
-            "refixes.mixins.json → MixinX; other.mixins.json → MixinY; plain.mixins.json");
+            "example.mixins.json → MixinX; other.mixins.json → MixinY; plain.mixins.json");
         LinkedHashMap<String, String> plugins = new LinkedHashMap<>();
         plugins.put("Harold:Blackbox", "0.2.0 @ >=0.5.0 @ COMPATIBLE");
-        plugins.put("IroriPowered:Refixes", "0.4.4 @ 0.5.3 @ INCOMPATIBLE");
+        plugins.put("ExampleVendor:ExamplePlugin", "0.4.4 @ 0.5.3 @ INCOMPATIBLE");
         plugins.put("Hytale:NPC", "1.0.0");
-        LinkedHashMap<String, String> refixes = new LinkedHashMap<>();
-        refixes.put("AiTickThrottler.Enabled", "true");
+        LinkedHashMap<String, String> pluginConfig = new LinkedHashMap<>();
+        pluginConfig.put("ExampleFeature.Enabled", "true");
         LinkedHashMap<String, String> tickSystems = new LinkedHashMap<>();
         tickSystems.put("EntityTickingSystem @ default", "5.10 12.40 4.80 30.00");
         LinkedHashMap<String, String> modCpu = new LinkedHashMap<>();
         modCpu.put("sh.harold.blackbox", "412 samples · JfrController.dump");
-        modCpu.put("com.electro.hycitizens", "8123 samples · CitizenBrain.tick");
+        modCpu.put("com.example.plugin", "8123 samples · ExampleSystem.tick");
         LinkedHashMap<String, String> env = new LinkedHashMap<>();
-        env.put("Hyinit", "installed (0.2.1)");
-        env.put("Server name", "Froschteich");
+        env.put("ExampleLoader", "installed (1.0.0)");
+        env.put("Server name", "ExampleServer");
         env.put("Hytale version", "0.5.4");
         env.put("Container runtime", "Docker");
         String log = "[2026/06/06 15:41:09   WARN] [Spawning] Removing NPC\n"
-            + "[2026/06/06 15:41:10 SEVERE] [HyCitizens] Uncaught exception\n"
-            + "\tat com.electro.hycitizens.ai.CitizenBrain.tick(CitizenBrain.java:142)\n"
+            + "[2026/06/06 15:41:10 SEVERE] [ExamplePlugin] Uncaught exception\n"
+            + "\tat com.example.plugin.ai.ExampleSystem.tick(ExampleSystem.java:142)\n"
             + "[2026/06/06 15:41:11   INFO] [Vote] Player ready";
         LinkedHashMap<String, String> heapHistogram = new LinkedHashMap<>();
         heapHistogram.put("[B", "1234567 987654321");
@@ -172,33 +189,33 @@ class ReportHtmlTest {
             new DiagnosticSection("Mixins", mixins),
             new DiagnosticSection("Plugins", plugins),
             new DiagnosticSection("Server log", Map.of(), log),
-            new DiagnosticSection("Refixes", refixes),
+            new DiagnosticSection("ExamplePlugin", pluginConfig),
             new DiagnosticSection("Tick systems", tickSystems),
             new DiagnosticSection("Mod hot-path contribution (JFR)", modCpu),
             new DiagnosticSection("Heap histogram", heapHistogram),
             new DiagnosticSection("Entities", entities),
             new DiagnosticSection("Environment", env),
-            new DiagnosticSection("mods/IroriPowered_Refixes/Refixes.json", Map.of(), "{\"a\":1}")));
+            new DiagnosticSection("mods/ExampleVendor_ExamplePlugin/config.json", Map.of(), "{\"a\":1}")));
 
         String html = render(r);
 
-        assertTrue(html.contains("\"bootstrapper\":\"Hyinit 0.2.1\""));
-        assertTrue(html.contains("[\"refixes.mixins.json\",[\"MixinA\",\"MixinB\"]]"));
+        assertTrue(html.contains("\"bootstrapper\":\"ExampleLoader 1.0.0\""));
+        assertTrue(html.contains("[\"example.mixins.json\",[\"MixinA\",\"MixinB\"]]"));
         assertTrue(html.contains(
-            "\"conflicts\":[[\"com.hypixel.hytale.X\",[[\"refixes.mixins.json\",\"MixinX\"],"
+            "\"conflicts\":[[\"com.hypixel.hytale.X\",[[\"example.mixins.json\",\"MixinX\"],"
             + "[\"other.mixins.json\",\"MixinY\"],[\"plain.mixins.json\",null]]]]"));
         assertTrue(html.contains("[\"Harold\",\"Blackbox\",\"0.2.0\",false,\">=0.5.0\",\"COMPATIBLE\"]"));
-        assertTrue(html.contains("[\"IroriPowered\",\"Refixes\",\"0.4.4\",false,\"0.5.3\",\"INCOMPATIBLE\"]"));
+        assertTrue(html.contains("[\"ExampleVendor\",\"ExamplePlugin\",\"0.4.4\",false,\"0.5.3\",\"INCOMPATIBLE\"]"));
         assertTrue(html.contains("[\"Hytale\",\"NPC\",\"1.0.0\",true,null,null]"));
         assertTrue(html.contains("[\"WARN\",\"Spawning\",\"Removing NPC\"]"));
-        assertTrue(html.contains("\"ERROR\",\"HyCitizens\""));
-        assertTrue(html.contains("CitizenBrain.tick"));
-        assertTrue(html.contains("\"title\":\"mods/IroriPowered_Refixes/Refixes.json\""));
-        assertTrue(html.contains("\"title\":\"Refixes\""));
-        assertTrue(html.contains("AiTickThrottler.Enabled"));
+        assertTrue(html.contains("\"ERROR\",\"ExamplePlugin\""));
+        assertTrue(html.contains("ExampleSystem.tick"));
+        assertTrue(html.contains("\"title\":\"mods/ExampleVendor_ExamplePlugin/config.json\""));
+        assertTrue(html.contains("\"title\":\"ExamplePlugin\""));
+        assertTrue(html.contains("ExampleFeature.Enabled"));
         assertTrue(html.contains("\"tickSystems\":[[\"EntityTickingSystem\",\"default\",5.1,12.4,4.8,30.0]]"));
         assertTrue(html.contains("\"tickSystemsNote\":null"));
-        assertTrue(html.contains("\"modCpu\":[[\"com.electro.hycitizens\",8123,\"CitizenBrain.tick\"],"
+        assertTrue(html.contains("\"modCpu\":[[\"com.example.plugin\",8123,\"ExampleSystem.tick\"],"
             + "[\"sh.harold.blackbox\",412,\"JfrController.dump\"]]"));
         assertFalse(html.contains("\"title\":\"Mod hot-path contribution (JFR)\""));
         assertTrue(html.contains(
@@ -206,8 +223,8 @@ class ReportHtmlTest {
         assertFalse(html.contains("\"title\":\"Heap histogram\""));
         assertTrue(html.contains("\"entities\":[[\"default\",[[\"Zombie\",12],[\"Cow\",5]]]]"));
         assertFalse(html.contains("\"title\":\"Entities\""));
-        assertTrue(html.contains("\"loaders\":[[\"Hyinit\",\"0.2.1\"]]"));
-        assertTrue(html.contains("\"server\":\"Froschteich\""));
+        assertTrue(html.contains("\"loaders\":[[\"ExampleLoader\",\"1.0.0\"]]"));
+        assertTrue(html.contains("\"server\":\"ExampleServer\""));
         assertTrue(html.contains("\"hytale\":\"0.5.4\""));
         assertTrue(html.contains(
             "\"container\":{\"runtime\":\"Docker\",\"type\":null,\"cpuLimit\":null,\"memLimit\":null}"));
@@ -227,7 +244,7 @@ class ReportHtmlTest {
     @Test
     void mixinConflictsNoneRendersEmptyList() throws Exception {
         LinkedHashMap<String, String> mixins = new LinkedHashMap<>();
-        mixins.put("Bootstrapper", "Hyxin");
+        mixins.put("Bootstrapper", "ExampleLoader");
         mixins.put("a.mixins.json", "MixinA");
         mixins.put("Conflicts", "none");
 
@@ -241,7 +258,7 @@ class ReportHtmlTest {
     void parsesHytaleLogFormat() {
         List<ReportHtml.LogLine> entries = ReportHtml.parseLog(
             "[2026/06/06 15:41:09   WARN] [Spawning] Removing NPC 'Boar'\n"
-            + "[2026/06/06 15:41:10 SEVERE] [HyCitizens] boom\n"
+            + "[2026/06/06 15:41:10 SEVERE] [ExamplePlugin] boom\n"
             + "\tat a.b.C.d(C.java:1)\n"
             + "Caused by: java.lang.IllegalStateException\n"
             + "[2026/06/06 15:41:11   INFO] [Vote] ok");
@@ -254,6 +271,23 @@ class ReportHtmlTest {
         assertEquals("ERROR", entries.get(1).level());
         assertTrue(entries.get(1).message().contains("Caused by"));
         assertEquals("INFO", entries.get(2).level());
+    }
+
+    @Test
+    void parsesLogLinesWithRedactedTimestamp() {
+        List<ReportHtml.LogLine> entries = ReportHtml.parseLog(
+            "[2026/06/17 [REDACTED]   INFO] [HOSStatus|P] ONLINE\n"
+            + "[2026/06/17 [REDACTED]   WARN] [Spawning] Removing NPC\n"
+            + "[2026/06/17 [REDACTED] SEVERE] [ExamplePlugin] boom");
+
+        assertEquals(3, entries.size());
+        assertEquals("INFO", entries.get(0).level());
+        assertEquals("HOSStatus|P", entries.get(0).source());
+        assertEquals("ONLINE", entries.get(0).message());
+        assertEquals(-1, entries.get(0).epochMs());
+        assertEquals("WARN", entries.get(1).level());
+        assertEquals("Removing NPC", entries.get(1).message());
+        assertEquals("ERROR", entries.get(2).level());
     }
 
     @Test

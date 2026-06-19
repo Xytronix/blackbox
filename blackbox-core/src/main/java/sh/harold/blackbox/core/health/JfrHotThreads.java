@@ -58,10 +58,25 @@ public final class JfrHotThreads {
         for (Map.Entry<String, long[]> entry : samplesByThread.entrySet()) {
             String name = entry.getKey();
             long samples = entry.getValue()[0];
-            out.add(new HealthSnapshot.HotThread(name, samples, dominantMethod(topMethodByThread.get(name))));
+            Map<String, Long> methods = topMethodByThread.get(name);
+            out.add(new HealthSnapshot.HotThread(
+                name, samples, dominantMethod(methods), topMethods(methods, HOT_THREAD_METHOD_LIMIT)));
         }
         out.sort((a, b) -> Long.compare(b.samples(), a.samples()));
         return out.size() > limit ? new ArrayList<>(out.subList(0, limit)) : out;
+    }
+
+    private static final int HOT_THREAD_METHOD_LIMIT = 6;
+
+    private static List<HealthSnapshot.MethodSample> topMethods(Map<String, Long> methods, int limit) {
+        if (methods == null || methods.isEmpty()) {
+            return List.of();
+        }
+        return methods.entrySet().stream()
+            .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+            .limit(limit)
+            .map(e -> new HealthSnapshot.MethodSample(e.getKey(), e.getValue()))
+            .toList();
     }
 
     private static final String[] ENGINE_PREFIXES = {
@@ -95,7 +110,7 @@ public final class JfrHotThreads {
                     String mod = modId(type);
                     modsInSample.add(mod);
                     methodByMod.computeIfAbsent(mod, k -> new HashMap<>())
-                        .merge(type + "." + frame.getMethod().getName(), 1L, Long::sum);
+                        .merge(JfrTimeline.cleanType(type) + "." + frame.getMethod().getName(), 1L, Long::sum);
                 }
                 for (String mod : modsInSample) {
                     samplesByMod.computeIfAbsent(mod, k -> new long[1])[0]++;
@@ -148,7 +163,8 @@ public final class JfrHotThreads {
         List<RecordedFrame> frames = stack.getFrames();
         for (RecordedFrame frame : frames) {
             if (frame.isJavaFrame() && frame.getMethod() != null) {
-                return frame.getMethod().getType().getName() + "." + frame.getMethod().getName();
+                return JfrTimeline.cleanType(frame.getMethod().getType().getName())
+                    + "." + frame.getMethod().getName();
             }
         }
         return null;

@@ -21,7 +21,10 @@ final class HytaleServerSettings {
     private HytaleServerSettings() {
     }
 
-    static List<DiagnosticSection> appendTo(List<DiagnosticSection> base) {
+    static List<DiagnosticSection> appendTo(List<DiagnosticSection> base, boolean includeServerConfig) {
+        if (!includeServerConfig) {
+            return base;
+        }
         String content = read();
         if (content == null) {
             return base;

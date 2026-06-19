@@ -12,7 +12,7 @@ plugins {
 
 val hytaleServerVersion = providers
     .gradleProperty("hytaleServerVersion")
-    .orElse("0.5.4")
+    .orElse("0.5.6")
 
 repositories {
     mavenCentral()

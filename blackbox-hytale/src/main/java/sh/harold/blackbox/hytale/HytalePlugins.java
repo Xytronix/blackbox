@@ -30,7 +30,7 @@ final class HytalePlugins {
 
     private static Map<String, String> entries() {
         Map<String, String> sorted = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        String serverVersion = serverVersion();
+        String serverVersion = HytaleServerVersion.get();
         try {
             List<PluginBase> plugins = PluginManager.get().getPlugins();
             for (PluginBase plugin : plugins) {
@@ -71,12 +71,4 @@ final class HytalePlugins {
         }
     }
 
-    private static String serverVersion() {
-        try {
-            return com.hypixel.hytale.server.core.HytaleServer.class
-                .getPackage().getImplementationVersion();
-        } catch (Throwable t) {
-            return null;
-        }
-    }
 }
