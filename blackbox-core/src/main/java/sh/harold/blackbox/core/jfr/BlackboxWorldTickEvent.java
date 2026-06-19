@@ -31,6 +31,12 @@ public final class BlackboxWorldTickEvent extends Event {
     @Label("Chunks")
     public int chunks;
 
+    @Label("Chunks generated (total)")
+    public long chunksGeneratedTotal;
+
+    @Label("Chunks loaded (total)")
+    public long chunksLoadedTotal;
+
     @Label("Avg ping")
     public double avgPingMs;
 }

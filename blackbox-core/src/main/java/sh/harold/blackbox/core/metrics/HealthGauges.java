@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class HealthGauges {
 
     public record World(String name, double tps, double tickMs, int players, int entities,
-                        double avgPingMs, long chunks) {
+                        double avgPingMs, long chunks, long chunksGeneratedTotal, long chunksLoadedTotal) {
     }
 
     public record Sample(double tps, double tickAvgMs, int players, long heapUsedBytes, long rssBytes,
@@ -29,6 +29,7 @@ public final class HealthGauges {
     private volatile long lastIncidentEpochSeconds = -1;
     private volatile long bundlesCount = -1;
     private volatile long bundlesBytes = -1;
+    private volatile double collectorTimeMs = -1;
     private volatile String version;
     private volatile Map<String, Double> pluginGauges = Map.of();
     private volatile Map<String, Double> pluginCounters = Map.of();
@@ -52,6 +53,14 @@ public final class HealthGauges {
 
     public long bundlesBytes() {
         return bundlesBytes;
+    }
+
+    public void setCollectorTimeMs(double ms) {
+        this.collectorTimeMs = ms;
+    }
+
+    public double collectorTimeMs() {
+        return collectorTimeMs;
     }
 
     public void setVersion(String version) {

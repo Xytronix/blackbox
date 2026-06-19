@@ -51,7 +51,8 @@ final class HytaleWorldStatsProvider implements WorldStatsProvider {
                 out.add(new HealthSnapshot.World(
                     name, playerCount(world), entityCount(world), chunkCount(world), tps, mspt,
                     playerNames(world), avgPingMs(world),
-                    percentiles[0], percentiles[1], percentiles[2]));
+                    percentiles[0], percentiles[1], percentiles[2],
+                    chunksGeneratedTotal(world), chunksLoadedTotal(world)));
             }
         } catch (Exception e) {
             LOGGER.log(System.Logger.Level.WARNING, "World stats collection failed.", e);
@@ -143,6 +144,22 @@ final class HytaleWorldStatsProvider implements WorldStatsProvider {
     private static int chunkCount(World world) {
         try {
             return world.getChunkStore().getLoadedChunksCount();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private static long chunksGeneratedTotal(World world) {
+        try {
+            return world.getChunkStore().getTotalGeneratedChunksCount();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private static long chunksLoadedTotal(World world) {
+        try {
+            return world.getChunkStore().getTotalLoadedChunksCount();
         } catch (Exception e) {
             return -1;
         }

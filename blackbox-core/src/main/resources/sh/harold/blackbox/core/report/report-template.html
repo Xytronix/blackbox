@@ -1081,6 +1081,8 @@ function comparisonHtml(){
     {l:"Players",s:ser.players,u:"players",dec:0,bad:null},
     {l:"Entities",s:ser.entities,u:"entities",dec:0,bad:"up25warn"},
     {l:"Chunks",s:ser.chunks,u:"chunks",dec:0,bad:null},
+    {l:"Chunks generated",s:ser.chunksGenerated,u:"/interval",dec:0,bad:null},
+    {l:"Chunks loaded",s:ser.chunksLoaded,u:"/interval",dec:0,bad:null},
     {l:"Machine CPU",s:ser.cpu,u:"%",dec:1,bad:"up"},
     {l:"Heap",s:DV.heapG,u:"GiB",dec:1,bad:null},
     {l:"RSS",s:DV.rssG,u:"GB",dec:1,bad:null},
@@ -1312,6 +1314,11 @@ function metricsHtml(){
       (s,z)=>{const st=sstat(s);
         return statsInner({now:s[s.length-1],min:st.min,avg:st.avg,max:st.max,dec:0,unitLabel:"chunks"});});
   }
+  const churnLines=[];
+  if(ser.chunksGenerated&&!allZero(ser.chunksGenerated)) churnLines.push({name:"generated",kind:"count",series:ser.chunksGenerated,color:"#e0a96b",dec:0});
+  if(ser.chunksLoaded&&!allZero(ser.chunksLoaded)) churnLines.push({name:"loaded",kind:"count",series:ser.chunksLoaded,color:"#6ba9e0",dec:0});
+  if(churnLines.length) groupedCard("Chunk churn",churnLines,"per interval","chunks",cards,null,I.layers);
+  else if(ser.chunksGenerated||ser.chunksLoaded) flatZero.push("Chunk churn");
   if(allZero(ser.ping)) flatZero.push("Player ping");
   else if(ser.ping){
     card(I.clock,"Player ping","Average player round-trip time. Rising ping with stable TPS points at the network, not the server.",
@@ -2180,6 +2187,8 @@ function worldsHtml(){
   const entMap=new Map((D.entities||[]).map(e=>[e[0],e[1]]));
   const hasEnt=entMap.size>0||ws.some(w=>has(w.entities));
   const hasChunks=ws.some(w=>has(w.chunks));
+  const hasChunksGen=ws.some(w=>has(w.chunksGenerated));
+  const hasChunksLoad=ws.some(w=>has(w.chunksLoaded));
   const hasPct=ws.some(w=>has(w.msptP50)||has(w.msptP95)||has(w.msptMax));
   const pcountOf=w=>{const a=w.playerNames||[];const n=has(w.players)?w.players:a.length;return `<span class="pcount${n?'':' z'}"${a.length?` data-tip="In world: ${esc(a.join(", "))}"`:''}><span class="plk">${I.players}</span><b>${n}</b></span>`;};
   const rows=ws.map(w=>{
@@ -2197,6 +2206,8 @@ function worldsHtml(){
       else cells+=`<td data-num="-1"><span class="pkg">·</span></td>`;
     }
     if(hasChunks) cells+=`<td class="r" data-num="${has(w.chunks)?w.chunks:-1}">${has(w.chunks)?fmt(w.chunks):"·"}</td>`;
+    if(hasChunksGen) cells+=`<td class="r" data-num="${has(w.chunksGenerated)?w.chunksGenerated:-1}">${has(w.chunksGenerated)?fmt(w.chunksGenerated):"·"}</td>`;
+    if(hasChunksLoad) cells+=`<td class="r" data-num="${has(w.chunksLoaded)?w.chunksLoaded:-1}">${has(w.chunksLoaded)?fmt(w.chunksLoaded):"·"}</td>`;
     if(hasTick){
       cells+=`<td class="r" data-num="${has(w.tps)?w.tps:-1}">${has(w.tps)&&w.tps>=0?w.tps.toFixed(1):"·"}</td>`;
       if(hasPct){
@@ -2216,6 +2227,8 @@ function worldsHtml(){
   let head=thc("World","World or ephemeral instance name",{sort:"text"})+thc("Kind","Persistent world or ephemeral instance",{sort:"text"});
   if(hasEnt) head+=thc("Entities","Live entities in this world at capture; hover a count for the typed breakdown",{sort:"num"});
   if(hasChunks) head+=thc("Chunks","Loaded chunks in this world at capture",{sort:"num",r:true});
+  if(hasChunksGen) head+=thc("Chunks gen","Chunks generated in this world during the captured window",{sort:"num",r:true});
+  if(hasChunksLoad) head+=thc("Chunks loaded","Chunks loaded (disk + generated) in this world during the captured window",{sort:"num",r:true});
   if(hasTick){
     head+=thc("TPS","Measured tick rate at capture",{sort:"num",r:true});
     if(hasPct) head+=thc("MSPT med","Median milliseconds per tick over the window",{sort:"num",r:true})+thc("p95","95th percentile milliseconds per tick",{sort:"num",r:true})+thc("max","Worst single tick in the window (ms)",{sort:"num",r:true});

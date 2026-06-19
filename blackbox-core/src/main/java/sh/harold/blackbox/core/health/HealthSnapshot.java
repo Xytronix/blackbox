@@ -52,23 +52,24 @@ public record HealthSnapshot(
 
     public record World(String name, int players, int entities, int chunks, double tps, double mspt,
                         List<String> playerNames, double avgPingMs,
-                        double msptP50, double msptP95, double msptMax) {
+                        double msptP50, double msptP95, double msptMax,
+                        long chunksGeneratedTotal, long chunksLoadedTotal) {
         public World {
             playerNames = playerNames == null ? List.of() : List.copyOf(playerNames);
         }
 
         public World(String name, int players, int entities, int chunks, double tps, double mspt) {
-            this(name, players, entities, chunks, tps, mspt, List.of(), -1, -1, -1, -1);
+            this(name, players, entities, chunks, tps, mspt, List.of(), -1, -1, -1, -1, -1, -1);
         }
 
         public World(String name, int players, int entities, int chunks, double tps, double mspt,
                      List<String> playerNames) {
-            this(name, players, entities, chunks, tps, mspt, playerNames, -1, -1, -1, -1);
+            this(name, players, entities, chunks, tps, mspt, playerNames, -1, -1, -1, -1, -1, -1);
         }
 
         public World(String name, int players, int entities, int chunks, double tps, double mspt,
                      List<String> playerNames, double avgPingMs) {
-            this(name, players, entities, chunks, tps, mspt, playerNames, avgPingMs, -1, -1, -1);
+            this(name, players, entities, chunks, tps, mspt, playerNames, avgPingMs, -1, -1, -1, -1, -1);
         }
     }
 

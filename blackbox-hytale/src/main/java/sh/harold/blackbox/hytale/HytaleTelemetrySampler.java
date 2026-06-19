@@ -53,6 +53,7 @@ final class HytaleTelemetrySampler {
     }
 
     void sampleWorldTicks() {
+        long startNanos = System.nanoTime();
         int totalPlayers = 0;
         boolean playersKnown = false;
         long totalChunks = 0;
@@ -70,7 +71,8 @@ final class HytaleTelemetrySampler {
                 chunksKnown = true;
             }
             worldGauges.add(new HealthGauges.World(world.name(), world.tps(), world.mspt(),
-                world.players(), world.entities(), world.avgPingMs(), world.chunks()));
+                world.players(), world.entities(), world.avgPingMs(), world.chunks(),
+                world.chunksGeneratedTotal(), world.chunksLoadedTotal()));
             if (world.tps() < 0) {
                 continue;
             }
@@ -85,6 +87,8 @@ final class HytaleTelemetrySampler {
             event.players = world.players();
             event.entities = world.entities();
             event.chunks = world.chunks();
+            event.chunksGeneratedTotal = world.chunksGeneratedTotal();
+            event.chunksLoadedTotal = world.chunksLoadedTotal();
             event.avgPingMs = world.avgPingMs();
             event.commit();
         }
@@ -112,6 +116,7 @@ final class HytaleTelemetrySampler {
         } catch (Exception e) {
             logger.log(System.Logger.Level.WARNING, "System tick sampling failed.", e);
         }
+        healthGauges.setCollectorTimeMs((System.nanoTime() - startNanos) / 1_000_000.0);
     }
 
     private void recordHealthMetrics(double tickAvgMs, double tps, int players,

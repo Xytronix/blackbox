@@ -58,7 +58,7 @@ class PrometheusExporterTest {
     void render_emitsPerWorldLabelledGauges() {
         HealthGauges gauges = new HealthGauges();
         gauges.set(sample(List.of(
-            new HealthGauges.World("overworld", 19.98, 12.40, 5, 320, 41.5, 1024))));
+            new HealthGauges.World("overworld", 19.98, 12.40, 5, 320, 41.5, 1024, -1, -1))));
         String text = PrometheusExporter.render(gauges);
 
         assertTrue(text.contains("\nblackbox_world_tps{world=\"overworld\"} 19.98\n"), text);
@@ -73,10 +73,50 @@ class PrometheusExporterTest {
     void render_escapesWorldLabelValues() {
         HealthGauges gauges = new HealthGauges();
         gauges.set(sample(List.of(
-            new HealthGauges.World("a\"b\\c", 1.0, -1, -1, -1, -1, -1))));
+            new HealthGauges.World("a\"b\\c", 1.0, -1, -1, -1, -1, -1, -1, -1))));
         String text = PrometheusExporter.render(gauges);
 
         assertTrue(text.contains("blackbox_world_tps{world=\"a\\\"b\\\\c\"} 1.00\n"), text);
+    }
+
+    @Test
+    void render_emitsPerWorldChurnCounters() {
+        HealthGauges gauges = new HealthGauges();
+        gauges.set(sample(List.of(
+            new HealthGauges.World("overworld", 19.98, 12.40, 5, 320, 41.5, 1024, 8000, 12000))));
+        String text = PrometheusExporter.render(gauges);
+
+        assertTrue(text.contains("# TYPE blackbox_world_chunks_generated_total counter"), text);
+        assertTrue(text.contains("\nblackbox_world_chunks_generated_total{world=\"overworld\"} 8000\n"), text);
+        assertTrue(text.contains("# TYPE blackbox_world_chunks_loaded_total counter"), text);
+        assertTrue(text.contains("\nblackbox_world_chunks_loaded_total{world=\"overworld\"} 12000\n"), text);
+    }
+
+    @Test
+    void render_omitsChurnCountersWhenUnknown() {
+        HealthGauges gauges = new HealthGauges();
+        gauges.set(sample(List.of(
+            new HealthGauges.World("overworld", 19.98, 12.40, 5, 320, 41.5, 1024, -1, -1))));
+        String text = PrometheusExporter.render(gauges);
+
+        assertFalse(text.contains("blackbox_world_chunks_generated_total"), text);
+        assertFalse(text.contains("blackbox_world_chunks_loaded_total"), text);
+    }
+
+    @Test
+    void render_emitsCollectorTime() {
+        HealthGauges gauges = new HealthGauges();
+        gauges.setCollectorTimeMs(2.50);
+        String text = PrometheusExporter.render(gauges);
+
+        assertTrue(text.contains("# TYPE blackbox_metrics_collector_time_ms gauge"), text);
+        assertTrue(text.contains("\nblackbox_metrics_collector_time_ms 2.50\n"), text);
+    }
+
+    @Test
+    void render_omitsCollectorTimeWhenUnknown() {
+        String text = PrometheusExporter.render(new HealthGauges());
+        assertFalse(text.contains("blackbox_metrics_collector_time_ms"), text);
     }
 
     @Test
