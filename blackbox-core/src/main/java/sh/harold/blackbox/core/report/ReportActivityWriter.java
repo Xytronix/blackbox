@@ -66,6 +66,8 @@ final class ReportActivityWriter {
             ReportJson.writeLongSeries(json, "hostMem", timeline.hostMemSeries());
             ReportJson.writeDoubleSeries(json, "entities", timeline.entitiesSeries());
             ReportJson.writeDoubleSeries(json, "chunks", timeline.chunksSeries());
+            ReportJson.writeDoubleSeries(json, "chunksGenerated", timeline.chunksGeneratedSeries());
+            ReportJson.writeDoubleSeries(json, "chunksLoaded", timeline.chunksLoadedSeries());
             ReportJson.writeDoubleSeries(json, "netIn", timeline.netInSeries());
             ReportJson.writeDoubleSeries(json, "netOut", timeline.netOutSeries());
             ReportJson.writeLongSeries(json, "threads", timeline.threadSeries());
@@ -384,6 +386,9 @@ final class ReportActivityWriter {
                 }
                 ReportJson.writeNullable(json, "entities", w.entities() >= 0 ? (long) w.entities() : null);
                 ReportJson.writeNullable(json, "chunks", w.chunks() >= 0 ? (long) w.chunks() : null);
+                long[] churn = timeline == null ? null : timeline.chunkChurnByWorld().get(w.name());
+                ReportJson.writeNullable(json, "chunksGenerated", churn != null && churn[0] >= 0 ? churn[0] : null);
+                ReportJson.writeNullable(json, "chunksLoaded", churn != null && churn[1] >= 0 ? churn[1] : null);
                 ReportJson.writeNullableDouble(json, "tps", w.tps() >= 0 ? w.tps() : null);
                 ReportJson.writeNullableDouble(json, "mspt", w.mspt() >= 0 ? w.mspt() : null);
                 ReportJson.writeNullableDouble(json, "msptP50", w.msptP50() >= 0 ? w.msptP50() : null);
@@ -404,6 +409,8 @@ final class ReportActivityWriter {
             json.name("playerNames").nullValue();
             json.name("entities").nullValue();
             json.name("chunks").nullValue();
+            json.name("chunksGenerated").nullValue();
+            json.name("chunksLoaded").nullValue();
             json.name("tps").nullValue();
             json.name("mspt").nullValue();
             json.name("msptP50").nullValue();

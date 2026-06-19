@@ -153,6 +153,8 @@ final class JfrTimelineParser {
         Map<String, List<Pt>> playersByWorld = new HashMap<>();
         Map<String, List<Pt>> entitiesByWorld = new HashMap<>();
         Map<String, List<Pt>> chunksByWorld = new HashMap<>();
+        Map<String, List<Pt>> chunksGenByWorld = new HashMap<>();
+        Map<String, List<Pt>> chunksLoadByWorld = new HashMap<>();
         List<Pt> heapCommitted = new ArrayList<>();
         List<Pt> hostMem = new ArrayList<>();
         long swapFree = -1;
@@ -464,6 +466,16 @@ final class JfrTimelineParser {
                                 chunksByWorld.computeIfAbsent(world, k -> new ArrayList<>())
                                     .add(new Pt(t, chunkCount));
                             }
+                            long chunksGen = getL(e, "chunksGeneratedTotal");
+                            if (chunksGen >= 0 && e.hasField("chunksGeneratedTotal")) {
+                                chunksGenByWorld.computeIfAbsent(world, k -> new ArrayList<>())
+                                    .add(new Pt(t, chunksGen));
+                            }
+                            long chunksLoad = getL(e, "chunksLoadedTotal");
+                            if (chunksLoad >= 0 && e.hasField("chunksLoadedTotal")) {
+                                chunksLoadByWorld.computeIfAbsent(world, k -> new ArrayList<>())
+                                    .add(new Pt(t, chunksLoad));
+                            }
                             double ping = getD(e, "avgPingMs");
                             long pingPlayers = getL(e, "players");
                             if (ping > 0 && pingPlayers > 0) {
@@ -539,6 +551,11 @@ final class JfrTimelineParser {
             .map(pts -> bucketLast(pts, lo, hi, buckets)).toList());
         double[] chunks = sumSeries(chunksByWorld.values().stream()
             .map(pts -> bucketLast(pts, lo, hi, buckets)).toList());
+        Map<String, long[]> chunkChurnByWorld = chunkChurnDeltas(chunksGenByWorld, chunksLoadByWorld);
+        double[] chunksGenerated = toDeltas(sumSeries(chunksGenByWorld.values().stream()
+            .map(pts -> bucketLast(pts, lo, hi, buckets)).toList()));
+        double[] chunksLoaded = toDeltas(sumSeries(chunksLoadByWorld.values().stream()
+            .map(pts -> bucketLast(pts, lo, hi, buckets)).toList()));
 
         List<NetIface> netOthers = new ArrayList<>();
         if (iface != null) {
@@ -724,11 +741,43 @@ final class JfrTimelineParser {
             topSlowIo(slowIo),
             entities,
             chunks,
+            chunkChurnByWorld,
+            chunksGenerated,
+            chunksLoaded,
             toLongs(bucketLast(heapCommitted, lo, hi, buckets)),
             toLongs(bucketLast(hostMem, lo, hi, buckets)),
             swapFree, swapTotal, List.copyOf(netOthers),
             computeHostCpu(hostCpuSamples),
             new Safepoint(safepointCount, round2(safepointTotalMs)));
+    }
+
+    private static Map<String, long[]> chunkChurnDeltas(Map<String, List<Pt>> gen,
+                                                        Map<String, List<Pt>> load) {
+        Map<String, long[]> out = new LinkedHashMap<>();
+        Set<String> worlds = new java.util.LinkedHashSet<>(gen.keySet());
+        worlds.addAll(load.keySet());
+        for (String world : worlds) {
+            long g = windowDelta(gen.get(world));
+            long l = windowDelta(load.get(world));
+            if (g >= 0 || l >= 0) {
+                out.put(world, new long[] {g, l});
+            }
+        }
+        return out;
+    }
+
+    private static long windowDelta(List<Pt> pts) {
+        if (pts == null || pts.isEmpty()) {
+            return -1;
+        }
+        double min = Double.MAX_VALUE;
+        double max = -1;
+        for (Pt p : pts) {
+            min = Math.min(min, p.v());
+            max = Math.max(max, p.v());
+        }
+        long d = (long) (max - min);
+        return d < 0 ? -1 : d;
     }
 
     private static double[] countPerBucket(Collection<ConnEvent> events, String phase,

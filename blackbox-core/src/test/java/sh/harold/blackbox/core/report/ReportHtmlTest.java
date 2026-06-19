@@ -58,7 +58,7 @@ class ReportHtmlTest {
             new HealthSnapshot.Threads(238, Map.of("RUNNABLE", 44, "WAITING", 96),
                 List.of(new HealthSnapshot.RunnableThread("WorldThread - default", "Foo.bar(Foo.java:1)"))),
             List.of(new HealthSnapshot.World("default", 10, 250, 1200, 25.1, 35.0,
-                List.of("Shebao", "PianoManu"), -1, 33.2, 48.9, 112.5)),
+                List.of("Shebao", "PianoManu"), -1, 33.2, 48.9, 112.5, 5000, 8000)),
             List.of(new HealthSnapshot.HotThread("WorldThread - default", 1234, "AStarBase.computePath")));
 
         String html = render(report(snap));

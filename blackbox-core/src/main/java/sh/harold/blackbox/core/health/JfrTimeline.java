@@ -119,6 +119,9 @@ public final class JfrTimeline {
     private final List<SlowIo> slowIo;
     private final double[] entitiesSeries;
     private final double[] chunksSeries;
+    private final Map<String, long[]> chunkChurnByWorld;
+    private final double[] chunksGeneratedSeries;
+    private final double[] chunksLoadedSeries;
     private final long[] heapCommittedSeries;
     private final long[] hostMemSeries;
     private final long swapFree;
@@ -144,6 +147,8 @@ public final class JfrTimeline {
                 long[] diskFreeSeries, long diskTotal,
                 double[] diskReadSeries, double[] diskWriteSeries, List<SlowIo> slowIo,
                 double[] entitiesSeries, double[] chunksSeries,
+                Map<String, long[]> chunkChurnByWorld,
+                double[] chunksGeneratedSeries, double[] chunksLoadedSeries,
                 long[] heapCommittedSeries, long[] hostMemSeries,
                 long swapFree, long swapTotal, List<NetIface> netOthers,
                 HostCpu hostCpu, Safepoint safepoint) {
@@ -203,6 +208,9 @@ public final class JfrTimeline {
         this.diskTotal = diskTotal;
         this.entitiesSeries = entitiesSeries;
         this.chunksSeries = chunksSeries;
+        this.chunkChurnByWorld = chunkChurnByWorld;
+        this.chunksGeneratedSeries = chunksGeneratedSeries;
+        this.chunksLoadedSeries = chunksLoadedSeries;
         this.heapCommittedSeries = heapCommittedSeries;
         this.hostMemSeries = hostMemSeries;
         this.swapFree = swapFree;
@@ -274,6 +282,9 @@ public final class JfrTimeline {
     public List<ModCpu> cpuByMod() { return cpuByMod; }
     public double[] entitiesSeries() { return entitiesSeries; }
     public double[] chunksSeries() { return chunksSeries; }
+    public Map<String, long[]> chunkChurnByWorld() { return chunkChurnByWorld; }
+    public double[] chunksGeneratedSeries() { return chunksGeneratedSeries; }
+    public double[] chunksLoadedSeries() { return chunksLoadedSeries; }
     public long[] heapCommittedSeries() { return heapCommittedSeries; }
     public long[] hostMemSeries() { return hostMemSeries; }
     public long swapFree() { return swapFree; }
