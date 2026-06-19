@@ -76,7 +76,7 @@ Blackbox is not a replacement for interactive profilers (yet). Retain your exist
 
 ## Development
 
-To build the project locally, ensure you have JDK 21 installed.
+To build the project locally, ensure you have JDK 25 installed.
 
 ```bash
 ./gradlew build
