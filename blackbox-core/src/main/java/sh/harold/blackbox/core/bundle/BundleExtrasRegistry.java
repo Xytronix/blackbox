@@ -22,12 +22,34 @@ public final class BundleExtrasRegistry implements BundleExtrasProvider {
         providers.add(provider);
     }
 
+    public void unregister(BundleExtrasProvider provider) {
+        Objects.requireNonNull(provider, "provider");
+        providers.remove(provider);
+    }
+
     @Override
     public List<BundleAttachment> extras(IncidentReport report, TriggerEvent triggerEvent) {
         List<BundleAttachment> all = new ArrayList<>();
         for (BundleExtrasProvider provider : providers) {
             try {
                 List<BundleAttachment> providerExtras = provider.extras(report, triggerEvent);
+                if (providerExtras != null) {
+                    all.addAll(providerExtras);
+                }
+            } catch (Exception e) {
+                logger.log(System.Logger.Level.WARNING,
+                    "BundleExtrasProvider " + provider.getClass().getName() + " failed.", e);
+            }
+        }
+        return all;
+    }
+
+    @Override
+    public List<BundleAttachment> historicalExtras() {
+        List<BundleAttachment> all = new ArrayList<>();
+        for (BundleExtrasProvider provider : providers) {
+            try {
+                List<BundleAttachment> providerExtras = provider.historicalExtras();
                 if (providerExtras != null) {
                     all.addAll(providerExtras);
                 }
