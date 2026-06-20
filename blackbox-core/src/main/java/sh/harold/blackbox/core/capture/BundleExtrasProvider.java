@@ -12,6 +12,14 @@ import sh.harold.blackbox.core.trigger.TriggerEvent;
 public interface BundleExtrasProvider {
     List<BundleAttachment> extras(IncidentReport report, TriggerEvent triggerEvent) throws Exception;
 
+    default List<BundleAttachment> historicalExtras() {
+        return List.of();
+    }
+
+    default List<BundleAttachment> configExtras() {
+        return List.of();
+    }
+
     static BundleExtrasProvider none() {
         return (report, triggerEvent) -> List.of();
     }
