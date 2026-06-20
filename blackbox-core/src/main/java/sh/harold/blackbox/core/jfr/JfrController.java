@@ -23,6 +23,8 @@ public final class JfrController implements AutoCloseable {
     private final long maxSizeBytes;
     private final String recordingName;
     private final List<String> disabledEvents;
+    private final String configurationName;
+    private final boolean oldObjectSampling;
     private Recording recording;
     private final System.Logger logger = System.getLogger(JfrController.class.getName());
 
@@ -31,22 +33,71 @@ public final class JfrController implements AutoCloseable {
     }
 
     public JfrController(Duration maxAge, long maxSizeBytes, String recordingName, List<String> disabledEvents) {
+        this(maxAge, maxSizeBytes, recordingName, disabledEvents, DEFAULT_CONFIGURATION);
+    }
+
+    public JfrController(Duration maxAge, long maxSizeBytes, String recordingName,
+                         List<String> disabledEvents, String configurationName) {
+        this(maxAge, maxSizeBytes, recordingName, disabledEvents, configurationName, false);
+    }
+
+    public JfrController(Duration maxAge, long maxSizeBytes, String recordingName,
+                         List<String> disabledEvents, String configurationName, boolean oldObjectSampling) {
         this.maxAge = Objects.requireNonNull(maxAge, "maxAge");
         this.maxSizeBytes = maxSizeBytes;
         this.recordingName = Objects.requireNonNull(recordingName, "recordingName");
         this.disabledEvents = List.copyOf(Objects.requireNonNull(disabledEvents, "disabledEvents"));
+        this.configurationName = configurationName == null || configurationName.isBlank()
+            ? DEFAULT_CONFIGURATION : configurationName;
+        this.oldObjectSampling = oldObjectSampling;
     }
 
     public void start() {
         if (recording != null) {
             return;
         }
-        Recording created = createConfiguredRecording(DEFAULT_CONFIGURATION);
+        startWith(configurationName);
+    }
+
+    public synchronized void restart(String configurationOverride) {
+        close();
+        startWith(configurationOverride == null || configurationOverride.isBlank()
+            ? configurationName : configurationOverride);
+    }
+
+    public synchronized void applyConfiguration(String configurationOverride) {
+        Recording rec = requireRecording();
+        String name = configurationOverride == null || configurationOverride.isBlank()
+            ? configurationName : configurationOverride;
+        try {
+            rec.setSettings(Configuration.getConfiguration(name).getSettings());
+        } catch (Exception e) {
+            logger.log(System.Logger.Level.WARNING,
+                "Failed to apply JFR configuration '" + name + "' to the live recording.", e);
+            return;
+        }
+        enableMarkerEvent(rec);
+        if (oldObjectSampling) {
+            enableOldObjectSampling(rec);
+        }
+        disableConfiguredEvents(rec);
+    }
+
+    private void startWith(String configuration) {
+        Recording created = createConfiguredRecording(configuration);
         created.setName(recordingName);
         created.setToDisk(true);
-        created.setMaxAge(maxAge);
-        created.setMaxSize(maxSizeBytes);
+        created.setMaxAge(maxAge.isZero() ? null : maxAge);
+        created.setMaxSize(Math.max(0L, maxSizeBytes));
+        if (maxAge.isZero() && maxSizeBytes <= 0L) {
+            logger.log(System.Logger.Level.WARNING,
+                "JFR recording has no age or size cap (both unlimited); the on-disk recording can grow until it "
+                + "fills the disk. Set Jfr.MaxAge or Jfr.MaxSizeBytes to a positive value to bound it.");
+        }
         enableMarkerEvent(created);
+        if (oldObjectSampling) {
+            enableOldObjectSampling(created);
+        }
         disableConfiguredEvents(created);
         created.start();
         this.recording = created;
@@ -109,6 +160,16 @@ public final class JfrController implements AutoCloseable {
                 .withThreshold(Duration.ZERO);
         } catch (IllegalArgumentException e) {
             logger.log(System.Logger.Level.WARNING, "Failed to enable marker event.", e);
+        }
+    }
+
+    private void enableOldObjectSampling(Recording recording) {
+        try {
+            recording.enable("jdk.OldObjectSample")
+                .withStackTrace()
+                .with("cutoff", "0 ns");
+        } catch (Exception e) {
+            logger.log(System.Logger.Level.WARNING, "Failed to enable old-object sampling.", e);
         }
     }
 

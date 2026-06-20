@@ -11,9 +11,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import sh.harold.blackbox.core.env.EnvCollector;
+import sh.harold.blackbox.core.env.TextRedactor;
+import sh.harold.blackbox.core.health.JfrTimeline;
 import sh.harold.blackbox.core.incident.IncidentReport;
 import sh.harold.blackbox.core.json.IncidentJson;
 import sh.harold.blackbox.core.report.ReportHtml;
@@ -24,14 +28,27 @@ import sh.harold.blackbox.core.report.ReportHtml;
 public final class BundleBuilder {
     private final Clock clock;
     private final System.Logger logger;
+    private final TextRedactor redactor;
+    private final UnaryOperator<String> textMasker;
 
     public BundleBuilder(Clock clock) {
         this(clock, System.getLogger(BundleBuilder.class.getName()));
     }
 
     public BundleBuilder(Clock clock, System.Logger logger) {
+        this(clock, logger, null);
+    }
+
+    public BundleBuilder(Clock clock, System.Logger logger, TextRedactor redactor) {
+        this(clock, logger, redactor, null);
+    }
+
+    public BundleBuilder(Clock clock, System.Logger logger, TextRedactor redactor,
+                         UnaryOperator<String> textMasker) {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.logger = Objects.requireNonNull(logger, "logger");
+        this.redactor = redactor;
+        this.textMasker = textMasker;
     }
 
     public Path build(
@@ -40,9 +57,20 @@ public final class BundleBuilder {
         Path outputZip,
         List<BundleAttachment> extras
     ) throws IOException {
+        return build(report, recordingJfr, outputZip, extras, BundleArtifacts.ALL);
+    }
+
+    public Path build(
+        IncidentReport report,
+        Path recordingJfr,
+        Path outputZip,
+        List<BundleAttachment> extras,
+        Set<String> artifacts
+    ) throws IOException {
         Objects.requireNonNull(report, "report");
         Objects.requireNonNull(recordingJfr, "recordingJfr");
         Objects.requireNonNull(outputZip, "outputZip");
+        Set<String> enabled = artifacts == null ? BundleArtifacts.ALL : artifacts;
 
         List<BundleAttachment> sortedExtras = new ArrayList<>(extras == null ? List.of() : extras);
         sortedExtras.sort(Comparator.comparing(BundleAttachment::pathInZip));
@@ -54,10 +82,16 @@ public final class BundleBuilder {
 
         try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(outputZip))) {
             writeIncidentJson(report, zip);
-            writeReportHtml(report, zip);
-            writeRecording(recordingJfr, zip);
-            writeEnvFiles(zip);
-            writeExtras(sortedExtras, zip);
+            if (enabled.contains(BundleArtifacts.REPORT)) {
+                writeReportHtml(report, recordingJfr, zip);
+            }
+            if (enabled.contains(BundleArtifacts.JFR)) {
+                writeRecording(recordingJfr, zip);
+            }
+            if (enabled.contains(BundleArtifacts.ENV)) {
+                writeEnvFiles(zip);
+            }
+            writeExtras(sortedExtras, zip, enabled);
         }
 
         return outputZip;
@@ -68,8 +102,21 @@ public final class BundleBuilder {
         IncidentJson.write(report, buffer);
         ZipEntry entry = zipEntry("incident.json");
         zip.putNextEntry(entry);
-        zip.write(buffer.toByteArray());
+        zip.write(maybeRedact(buffer.toByteArray()));
         zip.closeEntry();
+    }
+
+    private byte[] maybeRedact(byte[] data) {
+        return maybeMask(redactor == null ? data : redactor.redact(data));
+    }
+
+    private byte[] maybeMask(byte[] data) {
+        if (textMasker == null || data == null || data.length == 0) {
+            return data;
+        }
+        String text = new String(data, StandardCharsets.UTF_8);
+        String masked = textMasker.apply(text);
+        return text.equals(masked) ? data : masked.getBytes(StandardCharsets.UTF_8);
     }
 
     private void writeRecording(Path recordingJfr, ZipOutputStream zip) throws IOException {
@@ -81,12 +128,18 @@ public final class BundleBuilder {
         zip.closeEntry();
     }
 
-    private void writeReportHtml(IncidentReport report, ZipOutputStream zip) throws IOException {
+    private void writeReportHtml(IncidentReport report, Path recordingJfr, ZipOutputStream zip) throws IOException {
+        JfrTimeline timeline = null;
+        try {
+            timeline = JfrTimeline.parse(recordingJfr);
+        } catch (Exception e) {
+            logger.log(System.Logger.Level.WARNING, "JFR timeline parse failed; report renders without series.", e);
+        }
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        ReportHtml.write(report, buffer);
+        ReportHtml.write(report, timeline, buffer);
         ZipEntry entry = zipEntry("report.html");
         zip.putNextEntry(entry);
-        zip.write(buffer.toByteArray());
+        zip.write(maybeRedact(buffer.toByteArray()));
         zip.closeEntry();
     }
 
@@ -102,11 +155,15 @@ public final class BundleBuilder {
         zip.closeEntry();
     }
 
-    private void writeExtras(List<BundleAttachment> extras, ZipOutputStream zip) throws IOException {
+    private void writeExtras(List<BundleAttachment> extras, ZipOutputStream zip, Set<String> enabled) throws IOException {
         for (BundleAttachment extra : extras) {
+            String key = BundleArtifacts.keyForPath(extra.pathInZip());
+            if (key != null && !enabled.contains(key)) {
+                continue;
+            }
             ZipEntry entry = zipEntry(extra.pathInZip());
             zip.putNextEntry(entry);
-            zip.write(extra.data());
+            zip.write(maybeMask(extra.data()));
             zip.closeEntry();
         }
     }

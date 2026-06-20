@@ -7,9 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import sh.harold.blackbox.core.bundle.BundleAttachment;
 
 class HytaleBundleExtrasProviderTest {
 
@@ -64,6 +66,45 @@ class HytaleBundleExtrasProviderTest {
         String tail = HytaleBundleExtrasProvider.readTail(log, 2, 1024);
 
         assertEquals("b\nc\n", tail);
+    }
+
+    @Test
+    void emitsNumberedThreadDumpsWhenMultipleCaptured() {
+        List<BundleAttachment> extras =
+            HytaleBundleExtrasProvider.threadDumpAttachments(List.of("dump-A", "dump-B", "dump-C"));
+
+        assertEquals("dump-A", contentOf(extras, "extras/threads-1.txt"));
+        assertEquals("dump-B", contentOf(extras, "extras/threads-2.txt"));
+        assertEquals("dump-C", contentOf(extras, "extras/threads-3.txt"));
+        assertFalse(hasPath(extras, "extras/threads.txt"));
+    }
+
+    @Test
+    void usesSingleCapturedDumpAsThreadsTxt() {
+        List<BundleAttachment> extras =
+            HytaleBundleExtrasProvider.threadDumpAttachments(List.of("only-dump"));
+
+        assertEquals("only-dump", contentOf(extras, "extras/threads.txt"));
+    }
+
+    @Test
+    void capturesLiveThreadDumpWhenNoneProvided() {
+        List<BundleAttachment> extras =
+            HytaleBundleExtrasProvider.threadDumpAttachments(List.of());
+
+        assertTrue(contentOf(extras, "extras/threads.txt").startsWith("threads="));
+    }
+
+    private static String contentOf(List<BundleAttachment> extras, String path) {
+        return extras.stream()
+            .filter(a -> a.pathInZip().equals(path))
+            .map(a -> new String(a.data(), StandardCharsets.UTF_8))
+            .findFirst()
+            .orElseThrow();
+    }
+
+    private static boolean hasPath(List<BundleAttachment> extras, String path) {
+        return extras.stream().anyMatch(a -> a.pathInZip().equals(path));
     }
 
     private static final class InitMarker {
